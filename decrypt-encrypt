@@ -1,0 +1,9 @@
+local function encryptDecrypt(data: string, key: string)
+  local output = {}
+  for i = 1, #data do
+      local charValue = string.byte(data, i)
+      local keyValue = string.byte(key, (i - 1) % 3 + 1)
+      table.insert(output, string.char(bit32.bxor(charValue, keyValue)))
+  end
+  return table.concat(output)
+end
