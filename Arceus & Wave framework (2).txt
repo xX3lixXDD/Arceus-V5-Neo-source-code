@@ -1,0 +1,5264 @@
+(function() return [[
+
+	Riky47's Framework
+	- spdmteam.com
+	
+]] end)()
+
+if not LPH_OBFUSCATED then -- Luraph integration
+	local dummy = function(...) return ... end
+	LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or dummy
+	LPH_NO_UPVALUES = LPH_NO_UPVALUES or dummy
+	LPH_OBFUSCATED = LPH_OBFUSCATED or false
+	LPH_NO_VIRTUALIZE_MAX = LPH_NO_VIRTUALIZE_MAX or dummy
+	LPH_ENCFUNC = LPH_ENCFUNC or dummy
+	LPH_ENCSTR = LPH_ENCSTR or dummy
+	LPH_ENCNUM = LPH_ENCNUM or dummy
+	LPH_CRASH = LPH_CRASH or dummy
+	LPH_JIT = LPH_JIT or dummy
+end
+
+local VERSION = LPH_ENCSTR("1.0.0")
+local wave = {}
+
+--[[ Types ]]
+
+-- Dependencies
+
+type dependency = {
+	Remove: (self, dependency) -> ()
+}
+
+-- Signals
+
+type connection = {
+	Disconnect: (self: connection) -> ()
+}
+
+type signalEvent = {
+	id: string,
+
+	Once: (self: signalEvent, (any)) -> connection,
+	Wait: (self: signalEvent) -> any,
+	SetId: (self: signalEvent, id: string) -> signalEvent,
+	Remove: (self: signalEvent) -> (),
+	Connect: (self: signalEvent, (any)) -> connection,
+	Fire: (self: signalEvent, any) -> signalEvent,
+	Dispose: (self: signalEvent) -> signalEvent
+}
+
+type signalFunction = {
+	id: string,
+
+	Once: (self: signalFunction, (any)) -> connection,
+	Wait: (self: signalFunction) -> any,
+	SetId: (self: signalFunction, id: string) -> signalFunction,
+	Remove: (self: signalFunction) -> (),
+	Connect: (self: signalFunction, (any)) -> connection,
+	Invoke: (self: signalFunction, any) -> any,
+	Dispose: (self: signalFunction) -> signalFunction,
+}
+
+-- Utils
+
+type cache = {
+	id: string,
+
+	Push: (self: cache, key: string, value: any, ifMissing: boolean) -> cache,
+	SetThreshold: (self: cache, limit: number) -> cache,
+	GetNewest: (self: cache, num: number?) -> {string},
+	GetOldest: (self: cache, num: number?) -> {string},
+	Get: (self: cache, key: string) -> any,
+	GetAll: (self: cache) -> {string},
+	GetSize: (self: cache) -> (),
+	Remove: (self: cache) -> ()
+}
+
+type taskmanager = {
+	id: string,
+
+	AddTasks: (self: taskmanager, any: (any) -> ()) -> taskmanager,
+	SetTimeout: (self: taskmanager, timeout: number) -> taskmanager,
+	RunTasksAsync: (self: taskmanager, any: any) -> {
+		runtime: number,
+		success: boolean,
+		assigned: number,
+		completed: number
+	},
+
+	SetId: (self: taskmanager, id: string) -> taskmanager,
+	Clear: (self: taskmanager) -> taskmanager,
+	Remove: (self: taskmanager) -> ()
+}
+
+type poolmanager = {
+	id: string,
+
+	PushAsync: (self: poolmanager, any: (any) -> ()) -> poolmanager,
+	SetQueueCap: (self: poolmanager, value: number) -> poolmanager,
+	SetId: (self: poolmanager, id: string) -> poolmanager,
+	Clear: (self: poolmanager) -> poolmanager,
+	Remove: (self: poolmanager) -> ()
+}
+
+type directory = {
+	name: string,
+	path: string,
+	parent: string,
+	lastPath: string,
+
+	WriteJsonFile: (self: directory, name: string, source: string, encryptionKey: string) -> boolean,
+	WriteFile: (self: directory, name: string, source: string, encryptionKey: string) -> boolean,
+	ReadJsonFile: (self: directory, name: string, decryptionKey: string) -> string|boolean,
+	ReadFile: (self: directory, name: string, decryptionKey: string) -> string|boolean,
+	AddSubDirectory: (self: directory, name: string, path: string) -> directory,
+	DeleteFolder: (self: directory, name: string) -> boolean,
+	MakeFolder: (self: directory, name: string) -> boolean,
+	DeleteFile: (self: directory, name: string) -> boolean,
+	ListFiles: (self: directory, name: string) -> {string},
+	IsFolder: (self: directory, name: string) -> boolean,
+	IsFile: (self: directory, name: string) -> boolean,
+	Remove: (self: directory) -> ()
+}
+
+type holdable = {
+	button: instance,
+	enabled: boolean,
+	id: string,
+
+	OnLongPress: signalEvent,
+	OnShortPress: signalEvent,
+
+	Disable: (self: holdable) -> holdable,
+	Enable: (self: holdable) -> holdable,
+	SetId: (self, holdable) -> holdable,
+	Remove: (self: holdable) -> ()
+}
+
+type multi = {
+	button: instance,
+	enabled: boolean,
+	clicks: number,
+	id: string,
+
+	OnMultiPress: signalEvent,
+
+	SetClicks: (self: multi) -> multi,
+	Disable: (self: multi) -> multi,
+	Enable: (self: multi) -> multi,
+	SetId: (self, multi) -> multi,
+	Remove: (self: multi) -> ()
+}
+
+type unified = {
+	buttons: {instance},
+	enabled: boolean,
+	id: string,
+
+	OnUnifiedPress: signalEvent,
+
+	Disable: (self: unified) -> unified,
+	Enable: (self: unified) -> unified,
+	SetId: (self, unified) -> unified,
+	Remove: (self: unified) -> ()
+}
+
+type switch = {
+	button: instance,
+	enabled: boolean,
+	status: boolean,
+	id: string,
+
+	OnSwitched: signalEvent,
+	OnSwitchedOn: signalEvent,
+	OnSwitchedOff: signalEvent,
+
+	Disable: (self: switch) -> switch,
+	Enable: (self: switch) -> switch,
+	SetId: (self, switch) -> switch,
+	Remove: (self: switch) -> ()
+}
+
+type vertical = {
+	containers: {instance},
+	buttons: {instance},
+	percentage: boolean,
+	enabled: boolean,
+	id: string,
+
+	OnPercentageUpdated: signalEvent,
+	OnPercentageChanged: signalEvent,
+
+	SetPercentage: (self, switch) -> switch,
+	Disable: (self: switch) -> switch,
+	Enable: (self: switch) -> switch,
+	SetId: (self, switch) -> switch,
+	Remove: (self: switch) -> ()
+}
+
+type editor = {
+	id: string,
+
+	ConnectHighlighter: (self: editor, instance: instance|Instance) -> editor,
+	ConnectLinesCounter: (self: editor, instance: instance|Instance) -> editor,
+	SetHighlighterColors: (self: editor, colors: {any}) -> editor,
+	ToggleHighlighter: (self: editor, state: boolean) -> editor,
+	DisconnectLinesCounter: (self: editor) -> editor,
+	DisconnectHighlighter: (self: editor) -> editor,
+	SetText: (self: editor, text: string) -> editor,
+	IsTextOverLimit: (self: editor) -> boolean,
+	GetLinesCount: (self: editor) -> number,
+	GetText: (self: editor) -> string,
+	Execute: (self: editor) -> ediotr,
+	Remove: (self: ediotr) -> ()
+}
+
+type tabs = {
+	id: string,
+	OnTabCreated: signalEvent,
+	OnTabRemoved: signalEvent,
+	OnTabSelected: signalEvent,
+
+	Remove: (self: tab) -> (),
+	GetAll: (self: tab) -> {any},
+	Get: (self: tab, id: string) -> tab,
+	Select: (self: tab, id: string) -> tabs,
+	Add: (self: tab, button: instance, data: {any}, id: string) -> tab
+}
+
+type tab = {
+	id: string,
+	data: {any},
+	button: instance,
+
+	Remove: (self: tab) -> (),
+	Select: (self: tab) -> self,
+	GetData: (self: tab) -> {any},
+	SetId: (self: tab, id: string) -> tab
+}
+
+-- Renderer
+
+type binding = {
+	id: string,
+	priority: number,
+	enabled: boolean,
+
+	Pause: (self: binding) -> binding,
+	Resume: (self: binding) -> binding,
+	Render: (self: binding) -> binding,
+	SetPriority: (self: binding, priority: number) -> binding,
+	Unbind: (self: binding) -> ()
+}
+
+-- Interface
+
+type instance = {
+	instance: Instance,
+	id: string,
+
+	Tween: (self: instance, tweenInfo: TweenInfo, propertyTable: {any}) -> Tween,
+	RemoveTags: (self: instance, tags: {string}|string) -> instance,
+	SetDraggable: (self: instance, draggable: boolean) -> instance,
+	AddTags: (self: instance, tags: {string}|string) -> instance,
+	HasTags: (self: instance, tags: {string}|string) -> boolean,
+	SetParent: (self: instance, parent: instance) -> instance,
+	SetId: (self: instance, name: string) -> instance,
+	GetParent: (self: instance) -> instance,
+	Remove: (self: instance) -> ()
+}
+
+type baseComponent = {
+	OnCreating: signalFunction,
+
+	Remove: (self: baseComponent) -> ()
+}
+
+type component = {
+	id: string,
+
+	Tween: (self: instance, tweenInfo: TweenInfo, propertyTable: {any}) -> Tween,
+	SetDraggable: (self: component, draggable: boolean) -> component,
+	SetParent: (self: component, parent: instance) -> component,
+	SetId: (self: component, id: string) -> component,
+	GetParent: (self: instance) -> instance,
+	Remove: (self: component) -> ()
+}
+
+type interface = {
+	instance: ScreenGui,
+	id: string,
+
+	Remove: (self: interface) -> (),
+	GetByTag: (self: instance, tag: string) -> {string},
+	SetEnabled: (self: interface, enabled: boolean) -> interface,
+	AddInstance: (self: interface, class: string, properties: {any}, any: any) -> instance,
+	CreateComponent: (self: interface, name: string) -> baseComponent,
+	AddComponent: (self: interface, class: string, properties: {any}, any: any) -> component,
+	Get: (self: interface, name: string) -> instance | component | baseComponent
+}
+
+--[[ Enums ]]
+
+do
+	local enum = {}
+	local enums = {}
+
+	function enum.__index(t, k)
+		return t._map[k] or enums[k]
+	end
+
+	function enum.new(...: any): {any}
+		local items = {...}
+		local map = {}
+
+		for i, v in ipairs(items) do
+			map[v] = i
+		end
+
+		return setmetatable({
+			_map = map,
+			_items = items
+		}, enum)
+	end
+
+	function enum:GetEnumItems()
+		return self._items
+	end
+
+	function enums:AddEnum(category: string, ...: string)
+		enums[category] = enum.new(...)
+	end
+
+	wave.enums = enums;
+end
+
+--[[ Dependencies ]]
+
+do
+	local dependencies = {}
+
+	function dependencies:Add(name: string, data: {any}): dependency
+		if self[name] then
+			wave.console.error("Dependency name already in use.")
+		end
+
+		self[name] = data
+	end
+
+	function dependencies:Remove(name: string)
+		self[name] = nil
+		return self
+	end
+
+	function dependencies:Get(name: string): dependency
+		return self[name]
+	end
+
+	wave.dependencies = dependencies;
+end
+
+--[[ Env functions ]]
+
+do
+	local env = {}
+
+	env.protectfunction = function(funct: (any)) return funct end
+	local function emptyTable() return {} end
+	local function notFound() return 404 end
+
+	local protectedCloneFunction do
+		if clonefunction then
+			local clone = clonefunction(clonefunction) -- If they hook clonefunction ig we are screwed
+			env.protectfunction = clone(protectfunction or env.protectfunction)
+			env.protectfunction(env.protectfunction)
+			env.protectfunction(clone)
+			
+			protectedCloneFunction = clone
+		end
+		
+		protectedCloneFunction = function(...)
+			return ...
+		end
+	end
+	
+	env.GCProtectedFunction = function(funct: (any))
+		local clone = protectedCloneFunction(funct)
+		env.protectfunction(clone)
+		return clone
+	end
+	
+	env.debug = env.protectfunction(debug or {})
+	env.clonefunction = env.GCProtectedFunction(clonefunction or function(funct: (any))
+		return funct
+	end)
+	
+	env.protectassets = env.GCProtectedFunction(protectassets or (arceus and arceus.EOWOWQPQPPALSKSNX) or notFound)
+	
+	env.cloneref = env.GCProtectedFunction(cloneref or function(reference: any)
+		return reference
+	end)
+	
+	env.getgenv = env.GCProtectedFunction(getgenv or function() return _G end)
+
+	env.setclipboard = env.GCProtectedFunction(setclipboard or toclipboard or notFound)
+	env.getclipboard = env.GCProtectedFunction(getclipboard or notFound)
+
+	env.openurl = env.GCProtectedFunction(arceus and (arceus.openurl or arceus.open_url) or env.setclipboard)
+
+	env.loadstring = env.GCProtectedFunction(loadstring or function()
+		wave.console.warn("Fake loadstring")
+		return function(...) return ... end
+	end)
+	
+	env.executecode = env.GCProtectedFunction(executecode or run_script or function(source: string)
+		wave.protected:GCProtect(task).spawn(wave.env.loadstring(source))
+	end)
+	
+	env.runautoexec = env.GCProtectedFunction(runautoexec or notFound)
+
+	env.isfile = env.GCProtectedFunction(isfile or notFound)
+	env.delfile = env.GCProtectedFunction(delfile or notFound)
+	
+	env.readfile = env.GCProtectedFunction(readfile or notFound)
+	env.listfiles = env.GCProtectedFunction(lisfiles or notFound)
+	env.writefile = env.GCProtectedFunction(writefile or notFound)
+	
+	env.loadfile = env.GCProtectedFunction(loadfile or function(path: string)
+		if env.readfile() ~= 404 and env.isfile(path) ~= 404 then
+			return wave.env.loadstring(env.readfile(path))()
+		end
+	end)
+
+	env.isfolder = env.GCProtectedFunction(isfolder or notFound)
+	env.delfolder = env.GCProtectedFunction(delfolder or notFound)
+	env.makefolder = env.GCProtectedFunction(makefolder or notFound)
+
+	env.dofile = env.GCProtectedFunction(dofile or function(path: string)
+		if env.readfile() ~= 404 and env.isfile(path) ~= 404 then
+			env.executecode(env.readfile(path))
+		end
+	end)
+
+	env.getinfo = env.GCProtectedFunction(env.debug and env.debug.getinfo or (getinfo or notFound))
+	
+	env.request = env.GCProtectedFunction(request or http_request or (syn and syn.request) or notFound)
+
+	env.rconsoleerr = env.GCProtectedFunction(rconsoleerr or notFound)
+	env.rconsoleinfo = env.GCProtectedFunction(rconsoleinfo or notFound)
+	env.rconsoleprint = env.GCProtectedFunction(rconsoleprint or notFound)
+	env.rconsoleclear = env.GCProtectedFunction(rconsoleclear or notFound)
+	
+	env.getgc = env.GCProtectedFunction(getgc or emptyTable)
+	
+	env.newcclosure = env.GCProtectedFunction(newcclosure or function(funct: (any))
+		return funct
+	end)
+	
+	env.getupvalues = env.GCProtectedFunction(env.debug and env.debug.getupvalues or (getupvalues or getupvals or emptyTable))
+	
+	env.checkclosure = env.GCProtectedFunction(isourclosure or checkclosure or function()
+		return false
+	end)
+	
+	env.getconnections = env.GCProtectedFunction(getconnections or emptyTable)
+	
+	env.getnamecallmethod = env.GCProtectedFunction(getnamecallmethod or notFound)
+	env.setfpscap = env.GCProtectedFunction(setfpscap or notFound)
+	
+	env.hookfunction = env.GCProtectedFunction(hookfunction or function(_, funct: (any))
+		return funct
+	end)
+	
+	env.getcallingscript = env.GCProtectedFunction(getcallingscript or notFound)
+	
+	env.hookmetamethod = env.GCProtectedFunction(hookmetamethod or function(_, _, funct: (any))
+		return funct
+	end)
+	
+	env.saveinstance = env.GCProtectedFunction(saveinstance or notFound)
+	
+	env.setupvalue = env.GCProtectedFunction(debug.setupvalue or setupvalue or setupval or notFound)
+	env.getupvalue = env.GCProtectedFunction(debug.getupvalue or getupvalue or getupval or notFound)
+	
+	env.identifyexecutor = env.GCProtectedFunction(identifyexecutor or notFound)
+	env.gethwid = env.GCProtectedFunction(gethwid or function()
+		local succ, hwid = pcall(function()
+			return wave.protected:GetService("AnalyticsService"):GetClientId()
+		end)
+		
+		if not succ then -- Theres probably a safer way of getting this but atm relies on previous functions
+			hwid = `Player_{wave.protected:GetService("Players").LocalPlayer.UserId}`
+		end
+		
+		return hwid
+	end)
+	
+	env.getcustomasset = env.GCProtectedFunction(getcustomasset or function() return "" end)
+	
+	local function recursive(dest: {any}, tab: SharedTable)
+		env.protectfunction(dest)
+		
+		for name, closure in pairs(tab) do
+			if typeof(closure) == "table" then
+				if not dest[name] then
+					local tbl = {}
+					env.protectfunction(tbl)
+					dest[name] = tbl
+				end
+
+				recursive(dest[name], closure)
+			elseif typeof(closure) == "function" then
+				dest[name] = env.GCProtectedFunction(closure)
+				
+			elseif typeof(closure) == "Instance" then
+				local cloned = env.cloneref(closure)
+				env.protectfunction(cloned)
+				dest[name] = cloned
+				
+			else
+				dest[name] = closure
+			end
+		end
+		
+		return dest
+	end
+	
+	env.protectfunction(recursive)
+	env.DeepProtectedCopy = recursive
+	env.oldEnv = recursive({}, env.getgenv())
+
+	for k, v in pairs(env.oldEnv) do env[k] = v end
+	wave.env = env
+end
+
+--[[ Protections ]]
+
+do
+	local protected, references, functions = {}, {}, {}
+	local assetsCache = {}
+	
+	local tosecure = {
+		TextureID = {"TextureContent", true},
+		Texture = {"TextureContent", true},
+		MeshId = {"MeshContent", false},
+		Image = {"ImageContent", true},
+		
+		PressedImage = LPH_NO_VIRTUALIZE(function(inst: ImageButton, contentId: string)
+			local hi, ic = nil, nil
+			local debounce = true
+
+			local conns = {}
+			local connect = function(contentId: string)
+				for _, v in ipairs(conns) do
+					v:Disconnect()
+				end
+
+				hi = protected:GetUndetectedContent(contentId, true)
+				wave.utils.tables.insert(conns, inst.MouseButton1Down:Connect(function()
+					if debounce then return end
+					debounce = true
+
+					ic = inst.ImageContent
+					inst.ImageContent = hi
+				end))
+
+				wave.utils.tables.insert(conns, inst.MouseButton1Up:Connect(function()
+					if ic then inst.ImageContent = ic end
+					debounce = false
+				end))
+			end
+
+			connect(contentId)
+			return connect
+		end),
+		
+		HoverImage = LPH_NO_VIRTUALIZE(function(inst: ImageLabel, contentId: string)
+			local hi, ic = nil, nil
+			local debounce = true
+			
+			local conns = {}
+			local connect = function(contentId: string)
+				for _, v in ipairs(conns) do
+					v:Disconnect()
+				end
+				
+				hi = protected:GetUndetectedContent(contentId, true)
+				wave.utils.tables.insert(conns, inst.MouseEnter:Connect(function()
+					if debounce then return end
+					debounce = true
+					
+					ic = inst.ImageContent
+					inst.ImageContent = hi
+				end))
+				
+				wave.utils.tables.insert(conns, inst.MouseLeave:Connect(function()
+					if ic then inst.ImageContent = ic end
+					debounce = false
+				end))
+			end
+			
+			connect(contentId)
+			return connect
+		end),
+		
+		SelectionImage = true,
+		BottomImage = true,
+		TopImage = true,
+		MidImage = true
+	} -- Not adding fonts cuz they might be used somewhere else
+	
+	local useUndContent = false
+	local function deepCopy(data: SharedTable)
+		local copy = {}
+		for key, value in pairs(data) do
+			copy[key] = typeof(value) == "table" and deepCopy(value) or value
+		end
+
+		return copy
+	end
+	
+	local function deepForeach(x: {any}, funct: (key: any, value: any) -> ())
+		for i, v in pairs(x) do
+			if typeof(v) == "table" then
+				deepForeach(v, funct)
+			else
+				funct(i, v)
+			end
+		end
+	end
+	
+	local sos, sas = {}, {}
+	function protected:GCProtect(ref: (any)|{any}|Instance)
+		wave.env.protectfunction(ref)
+		return ref
+	end
+	
+	task.defer(function()
+		print(sos)
+	end)
+	
+	function protected:ProtectAsset(asset: string|{string})
+		if typeof(asset) == "string" then
+			asset = {asset}
+		end
+		
+		wave.env.protectassets(asset)
+		return wave.utils.tables.unpack(asset)
+	end
+	
+	function protected:GetUndetectedContent(contentId: string, isImage: boolean, options: {any})
+		local as: AssetService = self:GetService("AssetService")
+		
+		if not contentId then
+			local succ, editable = pcall(as.CreateEditableImage, as, options)
+			if not succ or not editable then
+				wave.console.warn("Unable to create undetected content.")
+				return Content.none
+			end
+			
+			return Content.fromObject(editable), editable
+		end
+		
+		assetsCache[contentId] = assetsCache[contentId] or
+			(isImage and Content.fromObject(as:CreateEditableImageAsync(contentId, options))
+				or Content.fromObject(as:CreateEditableMeshAsync(contentId, options)))
+
+		return assetsCache[contentId] or Content.none
+	end
+	
+	function protected:UseUndetectedContent(use: boolean)
+		useUndContent = use and true or false
+	end
+	
+	function protected:GetReference(reference: Instance|SharedTable)
+		--[[ if not references[reference] then -- is reference if i cache it?
+			references[reference] = self:GCProtect(typeof(reference) == "table" and deepCopy(reference) or wave.env.cloneref(reference))
+		end
+		return references[reference] ]]
+		return self:GCProtect(typeof(reference) == "table" and deepCopy(reference) or wave.env.cloneref(reference))
+	end
+
+	function protected:GetFunction(funct: (any))
+		if not functions[funct] then
+			functions[funct] = self:GCProtect(wave.env.clonefunction(funct))
+		end
+
+		return functions[funct]
+	end
+
+	local _game = wave.env.cloneref(game)
+	local _getService = wave.env.GCProtectedFunction(_game.GetService)
+	function protected:GetService(service: string)
+		return self:GetReference(_getService(_game, service))
+	end
+
+	protected.GetInstance = LPH_NO_VIRTUALIZE(function(self, class: string, properties: {any}, ...)
+		local instance = self:GCProtect(self:GetReference(Instance).new(class))
+		instance.Name = self:IsStudio() and (properties.Id or class) or wave.utils.strings.random(nil)
+		properties = self:ProtectTable(properties or {})
+		properties.Id = nil
+
+		instance.Parent = properties.Parent
+			and wave.utils.instances.getRobloxInstance(properties.Parent)
+			or wave.utils.instances.dynamicParent(nil)
+
+		properties.Parent = nil
+		
+		local customProps = {}
+		for i, v in properties do
+			if wave.utils.strings.find(i, "_") then
+				customProps[i] = v
+				
+			elseif typeof(instance[i]) == "RBXScriptSignal" then
+				instance[i]:Connect(v);
+				
+			elseif i ~= "Parent" and i ~= "Name" then
+				local props = tosecure[i]
+				if props then
+					v = self:ProtectAsset(v)
+					if useUndContent and props ~= true then
+						task.spawn(function()
+							local f = props
+							if typeof(props) ~= "function" then
+								f = function(inst: Instance, contentId: string)
+									inst[props[1]] = protected:GetUndetectedContent(contentId, props[2])
+								end
+							end
+							
+							local s, callback = pcall(f, instance, v)					
+							instance:GetPropertyChangedSignal(i):Connect(function()
+								local cid = instance[i]
+								if cid == "" then return end
+									
+								instance[i] = ""
+								if callback and typeof(callback) == "function" then
+									pcall(callback, cid)
+								else
+									pcall(f, instance, cid)
+								end
+							end)
+							
+							--wave.env.rconsoleerr("Failed to load Undetected Content: ".. callback)
+						end)
+					else
+						instance[i] = v
+					end
+					
+					instance:GetPropertyChangedSignal(i):Connect(function()
+						if instance[i] == "" then return end
+						self:ProtectAsset(instance[i])
+					end)
+				else
+					instance[i] = v
+				end
+			end
+		end
+
+		local children = self:GCProtect({})
+		for _, v in ipairs({...}) do
+			if typeof(v) == "Instance" then
+				v.Parent = instance;
+				
+			elseif typeof(v) == "function" then
+				for _, child in ipairs(v(instance)) do
+					wave.utils.tables.insert(children, child)
+					
+					if typeof(child) == "Instance" then
+						child.Parent = instance;
+						
+					else
+						child:SetParent(instance)
+					end
+				end
+				
+				continue
+			else
+				v:SetParent(instance)
+			end
+			
+			wave.utils.tables.insert(children, v)
+		end
+
+		return instance, children, customProps
+	end)
+	
+	function protected:ProtectTable(data: {any})
+		self:GCProtect(data)
+		
+		deepForeach(data, self:GCProtect(LPH_NO_VIRTUALIZE(function(key: any, value: any)
+			if typeof(key) == "function" or typeof(key) == "Instance" then
+				self:GCProtect(key)
+			elseif typeof(key) == "table" then
+				self:ProtectTable(key)
+			end
+			
+			if typeof(value) == "function" or typeof(value) == "Instance" then
+				self:GCProtect(value)
+			elseif typeof(value) == "table" then
+				self:ProtectTable(value)
+			end
+		end)))
+		
+		return data
+	end
+	
+	function protected:ProtectInstances(parent: Instance)
+		parent.Name = wave.utils.strings:GetRandomString()
+
+		for _, instance in ipairs(parent:GetDescendants()) do
+			instance.Name = wave.utils.strings:GetRandomString()
+		end
+	end
+	
+	local RUN_SERVICE = protected:GetService("RunService")
+	local isStudio = protected:GCProtect(RUN_SERVICE.IsStudio)
+	function protected:IsStudio()
+		return isStudio(RUN_SERVICE)
+	end
+	
+	protected:ProtectTable({deepCopy, deepForeach})
+	protected:ProtectTable(protected)
+	
+	protected:GCProtect(assetsCache)
+	protected:GCProtect(references)
+	protected:GCProtect(functions)
+	protected:GCProtect(tosecure)
+	
+	wave.protected = protected
+end
+
+--[=[
+do
+	local envhelper, overwritten = {}, wave.protected:GCProtect({})
+	local function inEnv(env: {any}, path: string, value: any?)
+		local split = string.split(path, ".")
+		
+		for i=1, #split -1 do env = env[split[i]] end
+		local last = split[#split]
+		local curr = env[last]
+		
+		if value ~= nil then env[last] = value end
+		return curr
+	end
+
+	function envhelper:Overwrite(path: string, value: any)
+		overwritten[path] = inEnv(wave.env, path, value)
+	end
+	
+	function envhelper:CloneEnv()
+		local clone = wave.env.DeepProtectedCopy({}, wave.env)
+		for path, old in pairs(overwritten) do
+			inEnv(clone, path, old)
+		end
+		
+		return clone
+	end
+
+	wave.protected:ProtectTable(envhelper)
+	wave.envhelper = envhelper
+end
+]=]
+
+--[[ Console ]]
+
+do
+	local console = {}
+	local isStudio = wave.protected:IsStudio()
+
+	local function default()
+		return 404
+	end
+	
+	local def = {}
+	def.clear = isStudio and default or wave.env.rconsoleclear
+	def.print = isStudio and print or wave.env.rconsoleprint
+	def.error = isStudio and error or wave.env.rconsoleerr
+	def.info = isStudio and print or wave.env.rconsoleinfo
+	def.warn = isStudio and warn or wave.env.rconsolewarn
+	def.title = "Framework"
+	
+	function def.getMessage(...: string)
+		local msg = `[{def.title}]:`
+		for _, v in ipairs({...}) do
+			msg ..= ` {v}`
+		end
+		
+		return msg
+	end
+	
+	console.clear = def.clear
+	function console.print(...: string)
+		def.print(def.getMessage(...))
+	end
+	
+	function console.error(...: string)
+		def.error(def.getMessage(...))
+	end
+	
+	function console.info(...: string)
+		def.info(def.getMessage(...))
+	end
+	
+	function console.warn(...: string)
+		def.warn(def.getMessage(...))
+	end
+	
+	function console:SetTitle(title: string)
+		def.title = title
+	end
+
+	wave.protected:ProtectTable(def)
+	wave.protected:ProtectTable(console)
+	wave.console = console
+end
+
+--[[
+do -- Validation
+	
+	-- wave.env.getgenv().xploit_loaded = true
+	-- if wave.env.xploit_loaded then -- This has been loaded before
+	-- 		return wave.console.error("Xploit-Framework has already been loaded")
+	-- end
+	
+	if wave.protected:IsStudio() then
+		local succ, err = pcall(function()
+			if script.Auth.Value == LPH_ENCSTR("Xploit_LvD4ztXsfTwX4aILIIiHSJJEampHThIddZJgvKZ0rDEvXcwgeulFuTZkzUkhKp8A") then
+				return true
+			end
+			
+			return false
+		end)
+		
+		if not succ or not err then
+			return wave.console.error(LPH_ENCSTR("Missing Authorization"))
+		end
+		
+	else
+		local http = wave.protected:GetService(LPH_ENCSTR("HttpService"))
+		local succ, configs = pcall(function()
+			return http:JSONDecode(game:HttpGet(LPH_ENCSTR("https://raw.githubusercontent.com/Riky47/Xploit-Framework/refs/heads/main/configs.json"), true))
+		end)
+
+		if not succ then
+			return wave.console.error(LPH_ENCSTR("Unable to get config informations: ") .. configs)
+		end
+
+		if configs.version ~= VERSION then
+			LPH_CRASH()
+			return wave.console.error(LPH_ENCSTR("This version is not currently active"))
+		end
+
+		local identity = wave.env.identifyexecutor()
+		identity = identity:lower()
+
+		local white, black = #configs.whitelist < 1, false
+		for _, partial in ipairs(configs.whitelist) do
+			if identity:find(partial:lower()) then
+				white = true
+				break
+			end
+		end
+
+		for _, partial in ipairs(configs.blacklist) do
+			if identity:find(partial:lower()) then
+				black = true
+				break
+			end
+		end
+
+		if not white or black then
+			LPH_CRASH()
+			return wave.console.error(LPH_ENCSTR("This exploit is not currently supported"))
+		end
+	end
+end
+]]
+
+--[[ Signal ]]
+
+do
+	local baseSignal, signals, cache = {}, {}, wave.protected:GCProtect({})
+	local counter = 0
+
+	function baseSignal:Once(funct: (any))
+		local conn; conn = self:Connect(function(...)
+			conn:Disconnect()
+			funct(...)
+		end)
+		
+		return conn
+	end
+
+	function baseSignal:Wait()
+		local thread = coroutine.running()
+		self:Once(function(...)
+			task.spawn(thread, ...)
+		end)
+		
+		return coroutine.yield()
+	end
+
+	function baseSignal:SetId(id: string)
+		if cache[id] then
+			error("Signal id already in use.")
+		end
+
+		cache[id] = self
+		cache[self.id] = nil
+		self.id = id
+
+		return self
+	end
+
+	function baseSignal:Remove()
+		self:Dispose()
+
+		cache[self.id] = nil
+	end
+
+	function baseSignal:Call(...: any)
+		if self.Invoke then
+			return self:Invoke(...)
+		end
+
+		self:Fire(...)
+	end
+
+	function signals.newEvent(id: string?): signalEvent
+		local finalId = (id and not cache[id]) and id or (function()
+			counter += 1
+			return "Event_" .. counter
+		end)()
+
+		local connections, firing, adding, lastArgs = {}, false, false, nil
+		local event = wave.utils.tables.concatenate({
+			id = finalId
+
+		}, baseSignal)
+
+		function event:Connect(funct: (any)): connection
+			local connection = {}
+
+			local wasFiring, exit = false, false
+			function connection:Disconnect()
+				exit = true
+				connections[self] = nil
+			end
+
+			adding = true
+			task.spawn(LPH_NO_VIRTUALIZE(function()
+				while firing do
+					wasFiring = true
+					task.wait()
+				end
+
+				if not exit then
+					connections[connection] = funct
+					if wasFiring then
+						task.spawn(funct, table.unpack(lastArgs))
+					end
+				end
+
+				adding = false
+			end))
+
+			return connection
+		end
+
+		function event:Fire(...)
+			task.spawn(LPH_NO_VIRTUALIZE(function(...)
+				while adding do
+					task.wait()
+				end
+
+				firing = true
+				lastArgs = {...}
+
+				for _, funct in pairs(connections) do
+					task.spawn(funct, ...)
+				end
+
+				firing = false
+				return self
+			end), ...)
+		end
+
+		function event:Dispose()
+			connections = {}
+			return self
+		end
+
+		if id then
+			cache[finalId] = event
+		end
+
+		return event
+	end
+
+	function signals.newFunction(id: string?): signalFunction
+		local finalId = (id and not cache[id]) and id or (function()
+			counter += 1
+			return "Function_" .. counter
+		end)()
+
+		local conn, callback
+		local fn = wave.utils.tables.concatenate({
+			id = finalId
+
+		}, baseSignal)
+
+		function fn:Connect(funct: (any)): connection
+			if conn then
+				conn:Disconnect()
+			end
+
+			local connection = {}
+			function connection:Disconnect()
+				connection = nil
+				callback = nil
+			end
+
+			callback = funct
+			conn = connection
+			return connection
+		end
+
+		function fn:Invoke(...)
+			if callback then
+				return callback(...)
+			end
+		end
+
+		function fn:Dispose()
+			callback = nil
+			return self
+		end
+
+		if id then
+			cache[finalId] = fn
+		end
+
+		return fn
+	end
+
+	function signals:Get(id: string): signalEvent|signalFunction
+		return cache[id]
+	end
+	
+	wave.protected:ProtectTable({baseSignal, signals})
+	wave.signals = signals
+end
+
+--[[ Utils ]]
+
+do
+	local utils = {}
+	wave.utils = utils
+
+	-- Tables
+
+	do
+		local tables = {}
+		tables.deepCopy = LPH_NO_VIRTUALIZE(function(data: {any})
+			local copy = {}
+
+			for key, value in pairs(data) do
+				copy[key] = typeof(value) == "table" and tables.deepCopy(value) or value
+			end
+
+			return copy
+		end)
+		
+		tables.listCopy = LPH_NO_VIRTUALIZE(function(list: {any})
+			local copy = {}
+			
+			for key, value in pairs(list) do
+				copy[key] = value
+			end
+
+			return copy
+		end)
+
+		tables.deepOverwrite = LPH_NO_VIRTUALIZE(function(x: {any}, y: {any}, inclusive: boolean?)
+			if y == nil then
+				return x;
+			end
+			for i, v in pairs(y) do
+				if x[i] == nil then
+					if inclusive then
+						x[i] = v;
+					end
+				else
+					local _type = typeof(x[i]);
+					if _type == typeof(v) then
+						if _type == "table" then
+							tables.deepOverwrite(x[i], v);
+						else
+							x[i] = v;
+						end
+					end
+				end
+			end
+			return x;
+		end)
+
+		tables.deepForeach = LPH_NO_VIRTUALIZE(function(x: {any}, funct: (key: any, value: any) -> ())
+			for i, v in pairs(x) do
+				if typeof(v) == "table" then
+					tables.deepForeach(v, funct)
+				else
+					funct(i, v)
+				end
+			end
+		end)
+
+		tables.concatenate = LPH_NO_VIRTUALIZE(function(x: {any}, ...:{any})
+			for _, tab in ipairs({...}) do
+				for key, value in pairs(tab) do
+					x[key] = value
+				end
+			end
+
+			return x
+		end)
+		
+		tables.secureConcatenate = LPH_NO_VIRTUALIZE(function(x: {any}, ...: {any})
+			for _, tab in ipairs({...}) do
+				for key, value in pairs(tab) do
+					local type = typeof(value)
+					
+					if type == "function" then
+						x[key] = wave.protected:GetFunction(value)
+						
+					elseif type == "Instance" or type == "table" then
+						x[key] = wave.protected:GetReference(value)
+					
+					else
+						x[key] = value
+					end
+				end
+			end
+
+			return x
+		end)
+
+		tables.lenght = LPH_NO_VIRTUALIZE(function(data: {any})
+			local c = 0
+			for _, __ in pairs(data) do
+				c += 1
+			end
+
+			return 1
+		end)
+
+		function tables.customProperties(values: {any}, read: (key) -> any|boolean, write: (key, value) -> boolean)
+			wave.protected:GCProtect(write)
+			wave.protected:GCProtect(read)
+			
+			local proxy = wave.protected:GCProtect({})
+			local meta = wave.protected:GCProtect({})
+
+			meta.__index = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(_, k)
+				local res = read(k)
+				if res then
+					return res
+				end
+				
+				return values[k]
+			end))
+			meta.__newindex = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(_, k, v)
+				if values[k] ~= v and write(k, v) then
+					rawset(values, k, v)
+				end
+			end))
+
+			return setmetatable(proxy, meta)
+		end
+
+		wave.protected:ProtectTable(tables)
+		tables.secureConcatenate(tables, wave.protected:GetReference(table))
+		
+		utils.tables = tables
+	end
+
+	-- Strings
+
+	do
+		local strings = {}
+		utils.tables.secureConcatenate(strings, wave.protected:GetReference(string))
+
+		strings.random = LPH_NO_VIRTUALIZE(function(lenght: number?)
+			local chars = {}
+			for i = 1, lenght or utils.maths.random(16, 32) do
+				chars[i] = utils.strings.char(utils.maths.random(33, 230))
+			end
+
+			return utils.tables.concat(chars)
+		end)
+
+		strings.capitaliseFirst = LPH_NO_VIRTUALIZE(function(str: string)
+			return strings.upper(strings.sub(str, 1, 1)) .. strings.lower(strings.sub(str, 2));
+		end)
+
+		strings.toCamelCase = LPH_NO_VIRTUALIZE(function(str: string)
+			local res = "";
+			for i, v in strings.split(str, " ") do
+				res ..= i == 1 and strings.lower(v) or strings.capitaliseFirst(v);
+			end
+
+			return res;
+		end)
+			
+		strings.formatValue = LPH_NO_VIRTUALIZE(function(value: any)
+			local valueType = typeof(value)
+			
+			if valueType == "float" or valueType == "double" then
+				return strings.tostring(utils.maths.roundToDecimal(value, 0.01))
+				
+			elseif valueType == "Content" then
+				if strings.find(value,"/asset") then
+					local match = strings.find(value, "=") + 1
+					local id = strings.sub(value, match)
+					return id
+				else
+					return strings.tostring(value)
+				end
+				
+			elseif valueType == "Vector2" then
+				return strings.format("Vector2.new(%g, %g)",
+					value.X, value.Y)
+				
+			elseif valueType == "Vector3" then
+				return strings.format("Vector3.new(%g, %g, %g)",
+					value.X, value.Y, value.Z)
+				
+			elseif valueType == "Color3" then
+				return strings.format("Color3.new(%d, %d, %d)",
+					value.R*255, value.G*255, value.B*255)
+				
+			elseif valueType == "UDim" then
+				local scale = value.Scale
+				local offset = value.Offset
+				
+			elseif valueType == "UDim2" then
+				return strings.format("UDim2.new(%d, %d, %d, %d)",
+					value.X.Scale, value.X.Offset, value.Y.Scale, value.Y.Offset)
+				
+			elseif valueType == "Font" then
+				return strings.format("Font.new('%s', %s, %s)",
+					value.Family, tostring(value.Weight), tostring(value.Style))
+			end
+			
+			return strings.tostring(value)
+		end)
+		
+		strings.fromFormatted = LPH_NO_VIRTUALIZE(function(formatted: string)
+			local num = tonumber(formatted)
+			if num then return num end
+			
+			local succ, load = pcall(wave.env.loadstring, `return {formatted}`)
+			return succ and load()
+		end)
+
+		wave.protected:ProtectTable(strings)
+		strings.tostring = wave.protected:GetFunction(tostring)
+		
+		utils.strings = strings
+	end
+
+	-- Maths
+
+	do
+		local mth = {}
+		utils.tables.secureConcatenate(mth, wave.protected:GetReference(math))
+
+		local denominations = {
+			"K", "M", "B", "T", "q", "Q", "s", "S", "O", "N", "d", "U", "D"
+		}
+
+		mth.lerp = LPH_NO_VIRTUALIZE(function(a: number, b: number, t: number)
+			return a + (b - a) * t
+		end)
+
+		mth.roundToDecimal = LPH_NO_VIRTUALIZE(function(input: number, float: number): number
+			local bracket = 1 / float;
+			return mth.round(input * bracket) / bracket;
+		end)
+
+		mth.formatAsCount = LPH_NO_VIRTUALIZE(function(input: number, float: number): string
+			if input < 1000 then
+				return utils.strings.tostring(input);
+			end
+
+			local denominationIndex = mth.floor(mth.log10(input) / 3);
+			return utils.strings.tostring(mth.round(input / (10 ^ (denominationIndex * 3)), float)) .. utils.strings.tostring(denominations[denominationIndex]);
+		end)
+
+		mth.formatAsLiteralCount = LPH_NO_VIRTUALIZE(function(input: number): string
+			local x = wave.utils.strings.gsub(wave.utils.strings.reverse(utils.strings.tostring(input)), "(%d%d%d)", "%1,");
+			return wave.utils.strings.gsub(wave.utils.strings.reverse(x), "^,", "");
+		end)
+
+		mth.isWithin2DBounds = LPH_NO_VIRTUALIZE(function(position: Vector2, topLeft: Vector2, bottomRight: Vector2): boolean
+			return position.X >= topLeft.X and position.X <= bottomRight.X and position.Y >= topLeft.Y and position.Y <= bottomRight.Y;
+		end)
+		
+		mth.outExpo = LPH_NO_VIRTUALIZE(function(t)
+			return t == 1 and 1 or 1 - mth.pow(2, -10 * t)
+		end)
+
+		wave.protected:ProtectTable(mth)
+		utils.maths = mth
+	end
+
+	-- Instances
+
+	do
+		local instances = {}
+		local tweenInfo = wave.protected:GetReference(TweenInfo)
+		local tweenService = wave.protected:GetService("TweenService")
+
+		function instances.tween(instance: Instance, duration: number, properties: {any}, ...): Tween
+			local tween = tweenService:Create(instance, tweenInfo.new(duration, ...), properties);
+			tween:Play();
+
+			return tween;
+		end
+
+		function instances.dynamicParent(parent: Instance)
+			if wave.env.gethui then
+				parent = wave.env.gethui()
+			else
+				local RUN_SERVICE = wave.protected:GetService("RunService")
+
+				if RUN_SERVICE:IsRunning() then
+					parent = wave.protected:IsStudio() and wave.protected:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") or wave.protected:GetService("CoreGui")
+				else
+					parent = wave.protected:GetService("StarterGui")
+				end
+			end
+
+			return parent
+		end
+		
+		function instances.new(classname: string, properties: {any}, ...: any)
+			return wave.protected:GetInstance(classname, properties, ...)
+		end
+
+		function instances.getRobloxInstance(instance: instance|Instance)
+			return typeof(instance) == "Instance" and instance or instance.instance
+		end
+
+		wave.protected:ProtectTable(instances)
+		utils.instances = instances
+	end
+
+	-- DateTimes
+
+	do
+		local datetimes = {}
+		utils.tables.secureConcatenate(datetimes, wave.protected:GetReference(DateTime))
+
+		datetimes.secondsToHM = LPH_NO_VIRTUALIZE(function(seconds: number)
+			local Minutes = (seconds -seconds %60) /60
+			seconds = seconds -Minutes *60
+			local Hours = (Minutes -Minutes %60) /60
+			Minutes = Minutes -Hours *60
+
+			return utils.strings.format("%02i", Hours).."h ".. utils.strings.format("%02i", Minutes).."m"
+		end)
+		
+		datetimes.secondsToMS = LPH_NO_VIRTUALIZE(function(seconds: number)
+			local Minutes = (seconds -seconds %60) /60
+			seconds = seconds -Minutes *60
+
+			return utils.strings.format("%02i", Minutes) .. ":" .. utils.strings.format("%02i", seconds)
+		end)
+
+		datetimes.unixToDAgo = LPH_NO_VIRTUALIZE(function(unix: number)
+			local date = datetimes.fromUnixTimestamp(unix):ToLocalTime()
+			local current = datetimes.now():ToLocalTime()
+
+			local daysAgo = ""
+			if date.Day < current.Day -1 then
+				daysAgo = (current.Day - date.Day) .. " Days ago"
+			else
+				daysAgo = date.Day == current.Day and "Today" or "Yesterday"
+			end
+
+			return daysAgo
+		end)
+
+		datetimes.unixToDAgoHM = LPH_NO_VIRTUALIZE(function(unix: number)
+			local date = datetimes.fromUnixTimestamp(unix):ToLocalTime()
+			return utils.datetimes.dateToDAgo(unix) .. ", " .. utils.strings.format("%02i", date.Hour) ..":".. utils.strings.format("%02i", date.Minute), date.Day
+		end)
+
+		datetimes.secondsToTimestamp = LPH_NO_VIRTUALIZE(function(unix: number)
+			local date = datetimes.fromUnixTimestamp(unix):ToLocalTime()
+
+			local timeStamp = utils.strings.format("%02d", date.Day)
+			timeStamp = timeStamp .. "/" .. utils.strings.format("%02d", date.Month)
+			timeStamp = timeStamp .. "/" .. date.Year
+
+			return timeStamp
+		end)
+
+		datetimes.isoToUnix = LPH_NO_VIRTUALIZE(function(iso: string)
+			return datetimes.fromIsoDate(iso).UnixTimestamp
+		end)
+
+		wave.protected:ProtectTable(datetimes)
+		utils.datetimes = datetimes
+	end
+	
+	-- Threading
+	
+	do
+		local threading, cache, count = {}, wave.protected:GCProtect({}), 0
+		local baseThreading = {}
+		
+		local taskRef = wave.protected:GetReference(task)
+		function baseThreading:SetId(id: string)
+			if cache[id] then
+				wave.console.error("Component id already in use.")
+			end
+
+			cache[id] = self
+			cache[self.id] = nil
+			self.id = id
+
+			return self
+		end
+
+		function baseThreading:Remove()
+			cache[self.id] = nil
+			self:Clear()
+		end
+		
+		threading.newTaskManager = function(id: string): taskmanager
+			id = id or (function()
+				count += 1
+				return "TaskManager_" .. count
+			end)()
+			
+			if cache[id] then
+				wave.console.error("TaskManager id already in use.")
+			end
+			
+			local tasks = wave.protected:GCProtect({})
+			local timeout = 5
+			local taskManager = utils.tables.concatenate({
+				id = id
+				
+			}, baseThreading)
+
+			function taskManager:SetTimeout(time: number)
+				if typeof(time == "number") then
+					timeout = time
+				end
+				
+				return self
+			end
+
+			function taskManager:AddTasks(...: (any) -> ())
+				for _, funct in ipairs({...}) do
+					if typeof(funct) == "function" then
+						table.insert(tasks, funct)
+					end
+				end
+				
+				return self
+			end
+
+			function taskManager:RunTasksAsync(...: any)
+				local starttime = os.clock()
+				local completed = 0
+
+				for _, funct in ipairs(tasks) do
+					taskRef.spawn(function(...)
+						funct(...)
+						completed += 1
+						
+					end, ...)
+				end
+
+				while completed < #tasks and os.clock() - starttime < timeout do
+					taskRef.wait()
+				end
+
+				if os.clock() - starttime >= timeout then
+					wave.console.warn("AsyncTasks timed out,", debug.traceback("Stack trace:"))
+				end
+
+				return {
+					assigned = #tasks,
+					completed = completed,
+					success = #tasks == completed,
+					runtime = os.clock() - starttime
+				}
+			end
+			
+			function taskManager:Clear()
+				tasks = {}
+				return self
+			end
+			
+			wave.protected:ProtectTable(taskManager)
+			cache[id] = taskManager
+			return taskManager
+		end
+		
+		function threading.newPoolManager(id: string): poolmanager
+			id = id or (function()
+				count += 1
+				return "PoolManager_" .. count
+			end)()
+
+			if cache[id] then
+				wave.console.error("PoolManager id already in use.")
+			end
+
+			local pool, cap, cur = {}, 100, 0
+			local poolManager = utils.tables.concatenate({
+				id = id
+
+			}, baseThreading)
+			
+			local function pullNext(funct: (any) -> ())
+				funct()
+				
+				if #pool > 0 then
+					pullNext(utils.tables.remove(pool, 1))
+				else
+					if cur > 0 then
+						cur -= 1
+					end
+				end
+			end
+			
+			function poolManager:SetQueueCap(value: number)
+				cap = tonumber(value)
+				return self
+			end
+			
+			function poolManager:PushAsync(...: (any) -> ())
+				for _, funct in ipairs({...}) do
+					if cur < cap then
+						cur += 1
+						taskRef.spawn(pullNext, funct)
+					else
+						utils.tables.insert(pool, function()
+							pullNext(funct)
+						end)
+					end
+				end
+				
+				return self
+			end
+			
+			function poolManager:Clear()
+				pool = {}
+				return
+			end
+			
+			wave.protected:ProtectTable(poolManager)
+			cache[id] = poolManager
+			return poolManager
+		end
+		
+		function threading:Get(id: string): taskmanager|poolmanager
+			return cache[id]
+		end
+		
+		wave.protected:ProtectTable({baseThreading, threading})
+		utils.threading = threading
+	end
+	
+	-- Cache
+	
+	do
+		local caches, cacheCache, count = {}, wave.protected:GCProtect({}), 0
+		
+		function caches.newCache(limit: number?, id: string?): cache
+			id = id or (function()
+				count += 1
+				return "Cache_" .. count
+			end)()
+			
+			if cacheCache[id] then wave.console.error("Cache id already in use.") end
+			local cache, map, idxs, limit = { id = id }, {}, {}, math.huge
+			
+			function cache:Push(key: string, value: any, ifMissing: boolean)
+				if ifMissing and map[key] ~= nil then return map[key] end
+				
+				map[key] = value
+				wave.utils.tables.insert(idxs, key)
+				
+				while #idxs > limit do
+					map[idxs[1]] = nil
+					wave.utils.tables.remove(idxs, 1)
+				end
+				return map[key]
+			end
+			
+			function cache:Get(key: string)
+				return map[key]
+			end
+			
+			function cache:GetSize()
+				return #idxs
+			end
+			
+			function cache:GetNewest(num: number?)
+				num = wave.utils.maths.clamp(num, 1, #idxs)
+				local newest = {}
+				
+				for i=#idxs, #idxs -num +1, -1 do wave.utils.tables.insert(newest, idxs[i]) end
+				return newest
+			end
+			
+			function cache:GetOldest(num: number?)
+				num = wave.utils.maths.clamp(num, 1, #idxs)
+				local oldest = {}
+
+				for i=1, num do wave.utils.tables.insert(oldest, idxs[i]) end
+				return oldest
+			end
+			
+			function cache:GetAll()
+				return wave.utils.tables.listCopy(idxs)
+			end
+			
+			function cache:SetThreshold(limit: number)
+				limit = wave.utils.maths.clamp(limit, 1, math.huge)
+				return self
+			end
+			
+			function cache:Remove()
+				cacheCache[id] = nil
+			end
+
+			cache:SetThreshold(limit or math.huge)
+			wave.protected:ProtectTable(cache)
+			cacheCache[id] = cache
+			return cache
+		end
+		
+		function caches:Get(id: string)
+			return cacheCache[id]
+		end
+		
+		wave.protected:ProtectTable(caches)
+		utils.caches = caches
+	end
+
+	-- Crypt
+
+	do
+		local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+		local crypt = {}
+		utils.tables.concatenate(crypt, wave.env.crypt or {})
+		local b32 = wave.protected:GetReference(bit32)
+		local base64 = {}
+
+		function base64.encode(data: string)
+			return ((data:gsub('.', function(x) 
+				local r,b='',x:byte()
+				for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+				return r;
+			end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+				if (#x < 6) then return '' end
+				local c=0
+				for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+				return b:sub(c+1,c+1)
+			end)..({ '', '==', '=' })[#data%3+1])
+		end
+
+		function base64.decode(data: string)
+			data = string.gsub(data, '[^'..b..'=]', '')
+			return (data:gsub('.', function(x)
+				if (x == '=') then return '' end
+				local r,f='',(b:find(x)-1)
+				for i=6,1,-1 do r=r..(f%2^i-f%2^(i-1)>0 and '1' or '0') end
+				return r;
+			end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+				if (#x ~= 8) then return '' end
+				local c=0
+				for i=1,8 do c=c+(x:sub(i,i)=='1' and 2^(8-i) or 0) end
+				return string.char(c)
+			end))
+		end
+
+		function crypt.bytes(data: string, key: string)
+			local output = {}
+			for i = 1, #data do
+				local charValue = utils.strings.byte(data, i)
+				local keyValue = utils.strings.byte(key, (i - 1) % #key + 1)
+				utils.tables.insert(output, utils.strings.char(b32.bxor(charValue, keyValue)))
+			end
+
+			return utils.tables.concat(output)
+		end
+
+		if not crypt.base64 then
+			crypt.base64 = base64
+		else
+			crypt.base64.encode = crypt.base64.encode or crypt.base64encode or crypt.base64_encode or base64.encode
+			crypt.base64.decode = crypt.base64.decode or crypt.base64decode or crypt.base64_decode or base64.decode
+		end
+		
+		--[[do -- RSA
+			local primes = wave.protected:GCProtect({	3,    5,    7,   11,   13,   17,   19,   23,   29,   31,   37,   41,   43,   47,
+				53,   59,   61,   67,   71,   73,   79,   83,   89,   97,  101,  103,  107,  109,  113,  127,
+				131,  137,  139,  149,  151,  157,  163,  167,  173,  179,  181,  191,  193,  197,  199,  211,
+				223,  227,  229,  233,  239,  241,  251,  257,  263,  269,  271,  277,  281,  283,  293,  307,
+				311,  313,  317,  331,  337,  347,  349,  353,  359,  367,  373,  379,  383,  389,  397,  401,
+				409,  419,  421,  431,  433,  439,  443,  449,  457,  461,  463,  467,  479,  487,  491,  499,
+				503,  509,  521,  523,  541,  547,  557,  563,  569,  571,  577,  587,  593,  599,  601,  607,
+				613,  617,  619,  631,  641,  643,  647,  653,  659,  661,  673,  677,  683,  691,  701,  709,
+				719,  727,  733,  739,  743,  751,  757,  761,  769,  773,  787,  797,  809,  811,  821,  823,
+				827,  829,  839,  853,  857,  859,  863,  877,  881,  883,  887,  907,  911,  919,  929,  937,
+				941,  947,  953,  967,  971,  977,  983,  991,  997, 1009, 1013, 1019, 1021, 1031, 1033, 1039,
+				1049, 1051, 1061, 1063, 1069, 1087, 1091, 1093, 1097, 1103, 1109, 1117, 1123, 1129, 1151, 1153,
+				1163, 1171, 1181, 1187, 1193, 1201, 1213, 1217, 1223, 1229, 1231, 1237, 1249, 1259, 1277, 1279,
+				1283, 1289, 1291, 1297, 1301, 1303, 1307, 1319, 1321, 1327, 1361, 1367, 1373, 1381, 1399, 1409,
+				1423, 1427, 1429, 1433, 1439, 1447, 1451, 1453, 1459, 1471, 1481, 1483, 1487, 1489, 1493, 1499,
+				1511, 1523, 1531, 1543, 1549, 1553, 1559, 1567, 1571, 1579, 1583, 1597, 1601, 1607, 1609, 1613,
+				1619, 1621, 1627, 1637, 1657, 1663, 1667, 1669, 1693, 1697, 1699, 1709, 1721, 1723, 1733, 1741,
+				1747, 1753, 1759, 1777, 1783, 1787, 1789, 1801, 1811, 1823, 1831, 1847, 1861, 1867, 1871, 1873,
+				1877, 1879, 1889, 1901, 1907, 1913, 1931, 1933, 1949, 1951, 1973, 1979, 1987, 1993, 1997, 1999,
+				2003, 2011, 2017, 2027, 2029, 2039, 2053, 2063, 2069, 2081, 2083, 2087, 2089, 2099, 2111, 2113,
+				2129, 2131, 2137, 2141, 2143, 2153, 2161, 2179, 2203, 2207, 2213, 2221, 2237, 2239, 2243, 2251,
+				2267, 2269, 2273, 2281, 2287, 2293, 2297, 2309, 2311, 2333, 2339, 2341, 2347, 2351, 2357, 2371,
+				2377, 2381, 2383, 2389, 2393, 2399, 2411, 2417, 2423, 2437, 2441, 2447, 2459, 2467, 2473, 2477,
+				2503, 2521, 2531, 2539, 2543, 2549, 2551, 2557, 2579, 2591, 2593, 2609, 2617, 2621, 2633, 2647,
+				2657, 2659, 2663, 2671, 2677, 2683, 2687, 2689, 2693, 2699, 2707, 2711, 2713, 2719, 2729, 2731,
+				2741, 2749, 2753, 2767, 2777, 2789, 2791, 2797, 2801, 2803, 2819, 2833, 2837, 2843, 2851, 2857,
+				2861, 2879, 2887, 2897, 2903, 2909, 2917, 2927, 2939, 2953, 2957, 2963, 2969, 2971, 2999, 3001,
+				3011, 3019, 3023, 3037, 3041, 3049, 3061, 3067, 3079, 3083, 3089, 3109, 3119, 3121, 3137, 3163,
+				3167, 3169, 3181, 3187, 3191, 3203, 3209, 3217, 3221, 3229, 3251, 3253, 3257, 3259, 3271, 3299,
+				3301, 3307, 3313, 3319, 3323, 3329, 3331, 3343, 3347, 3359, 3361, 3371, 3373, 3389, 3391, 3407,
+				3413, 3433, 3449, 3457, 3461, 3463, 3467, 3469, 3491, 3499, 3511, 3517, 3527, 3529, 3533, 3539,
+				3541, 3547, 3557, 3559, 3571, 3581, 3583, 3593, 3607, 3613, 3617, 3623, 3631, 3637, 3643, 3659,
+				3671, 3673, 3677, 3691, 3697, 3701, 3709, 3719, 3727, 3733, 3739, 3761, 3767, 3769, 3779, 3793,
+				3797, 3803, 3821, 3823, 3833, 3847, 3851, 3853, 3863, 3877, 3881, 3889, 3907, 3911, 3917, 3919,
+				3923, 3929, 3931, 3943, 3947, 3967, 3989, 4001, 4003, 4007, 4013, 4019, 4021, 4027, 4049, 4051,
+				4057, 4073, 4079, 4091, 4093, 4099, 4111, 4127, 4129, 4133, 4139, 4153, 4157, 4159, 4177, 4201,
+				4211, 4217, 4219, 4229, 4231, 4241, 4243, 4253, 4259, 4261, 4271, 4273, 4283, 4289, 4297, 4327,
+				4337, 4339, 4349, 4357, 4363, 4373, 4391, 4397, 4409, 4421, 4423, 4441, 4447, 4451, 4457, 4463,
+				4481, 4483, 4493, 4507, 4513, 4517, 4519, 4523, 4547, 4549, 4561, 4567, 4583, 4591, 4597, 4603,
+				4621, 4637, 4639, 4643, 4649, 4651, 4657, 4663, 4673, 4679, 4691, 4703, 4721, 4723, 4729, 4733,
+				4751, 4759, 4783, 4787, 4789, 4793, 4799, 4801, 4813, 4817, 4831, 4861, 4871, 4877, 4889, 4903,
+				4909, 4919, 4931, 4933, 4937, 4943, 4951, 4957, 4967, 4969, 4973, 4987, 4993, 4999, 5003, 5009,
+				5011, 5021, 5023, 5039, 5051, 5059, 5077, 5081, 5087, 5099, 5101, 5107, 5113, 5119, 5147, 5153,
+				5167, 5171, 5179, 5189, 5197, 5209, 5227, 5231, 5233, 5237, 5261, 5273, 5279, 5281, 5297, 5303,
+				5309, 5323, 5333, 5347, 5351, 5381, 5387, 5393, 5399, 5407, 5413, 5417, 5419, 5431, 5437, 5441,
+				5443, 5449, 5471, 5477, 5479, 5483, 5501, 5503, 5507, 5519, 5521, 5527, 5531, 5557, 5563, 5569,
+				5573, 5581, 5591, 5623, 5639, 5641, 5647, 5651, 5653, 5657, 5659, 5669, 5683, 5689, 5693, 5701,
+				5711, 5717, 5737, 5741, 5743, 5749, 5779, 5783, 5791, 5801, 5807, 5813, 5821, 5827, 5839, 5843,
+				5849, 5851, 5857, 5861, 5867, 5869, 5879, 5881, 5897, 5903, 5923, 5927, 5939, 5953, 5981, 5987,
+				6007, 6011, 6029, 6037, 6043, 6047, 6053, 6067, 6073, 6079, 6089, 6091, 6101, 6113, 6121, 6131,
+				6133, 6143})
+
+			-- BIG INTEGER FUNCTIONS
+			local cmp = wave.protected:GCProtect(function(m, n)									-- Compare
+				if #m == #n then
+					local i = 1
+					while m[i] and m[i] == n[i] do
+						i += 1
+					end
+					return m[i] and m[i] > n[i]
+				else
+					return #m > #n
+				end
+			end)
+			
+			local add = wave.protected:GCProtect(function(m, n, t)									-- Addition
+				table.clear(t)
+				if #m == 1 and m[1] == 0 then
+					return table.move(n, 1, #n, 1, t)
+				elseif #n == 1 and n[1] == 0 then
+					return table.move(m, 1, #m, 1, t)
+				end
+				m, n = if #m > #n then m else n, if #m > #n then n else m
+				local c, d = 0, nil
+
+				local i, j = #m, #n
+				for _ = i, 1, - 1 do
+					d = m[i] + (n[j] or 0) + c
+					t[i], c = d % 16777216, if d > 16777215 then 1 else 0
+					i -= 1
+					j -= 1
+				end
+				if c == 1 then
+					table.insert(t, 1, c)
+				end
+
+				return t
+			end)
+			local sub = wave.protected:GCProtect(function(m, n, t)									-- Substraction
+				table.clear(t)
+				local s = cmp(m, n)
+				if s == nil then
+					t[1] = 0
+					return t, true
+				end
+				m, n = if s then m else n, if s then n else m
+				if #m == 1 and m[1] == 0 then
+					return table.move(n, 1, #n, 1, t), s
+				elseif #n == 1 and n[1] == 0 then
+					return table.move(m, 1, #m, 1, t), s
+				end
+				local c, d = 0, nil
+
+				local i, j = #m, #n
+				for _ = i, 1, - 1 do
+					d = m[i] - (n[j] or 0) - c
+					t[i], c = d % 16777216, if d < 0 then 1 else 0
+					i -= 1
+					j -= 1
+				end
+				while t[2] and t[1] == 0 do
+					table.remove(t, 1)
+				end
+
+				return t, s
+			end)
+			local mul = wave.protected:GCProtect(function(m, n, t)									-- Multiplication
+				table.clear(t)
+				if (#m == 1 and m[1] == 0) or (#n == 1 and n[1] == 0) then
+					t[1] = 0
+					return t
+				end
+				m, n = if #m > #n then m else n, if #m > #n then n else m
+				local d, c
+
+				for i = #m, 1, - 1 do
+					c = 0
+					for j = #n, 1, - 1 do
+						d = (t[i + j] or 0) + (n[j] or 0) * m[i] + c
+						t[i + j], c = d % 16777216, math.floor(d / 16777216)
+					end
+					t[i] = c
+				end
+				while t[2] and t[1] == 0 do
+					table.remove(t, 1)
+				end
+
+				return t
+			end)
+			local div = wave.protected:GCProtect(function(m, n, t1, t2, p1, p2)					-- Division and modulus
+				table.clear	(t1)
+				table.clear	(t2)
+				t1[1] = 0
+				table.move	(m, 1, #m, 1, t2)
+				local s = true
+
+				while cmp(t2, n) ~= false do
+					table.clear(p1)
+					if t2[1] < n[1] then
+						p1[1] = math.floor((16777216 * t2[1] + t2[2]) / n[1])
+						for i = 2, #t2 - #n do
+							p1[i] = 0
+						end
+					else
+						p1[1] = math.floor(t2[1] / n[1])
+						for i = 2, #t2 - #n + 1 do
+							p1[i] = 0
+						end
+					end
+
+					table.clear(p2)
+					table.move(t1, 1, #t1, 1, p2)
+					_ = if s then add(p1, p2, t1) else sub(p1, p2, t1)
+					table.clear(p2)
+					mul(table.move(p1, 1, #p1, 1, p2), n, p1)
+					table.clear(p2)
+					table.move(t2, 1, #t2, 1, p2)
+					_, s = sub(if s then p2 else p1, if s then p1 else p2, t2)
+				end
+				if not s then
+					table.clear(p1)
+					table.clear(p2)
+					p2[1] = 1
+					sub(table.move(t1, 1, #t1, 1, p1), p2, t1)
+					table.clear(p1)
+					sub(n, table.move(t2, 1, #t2, 1, p1), t2)
+				end
+
+				return t1, t2
+			end)
+			local lcm = wave.protected:GCProtect(function(m, n, t, p1, p2, p3, p4, p5)				-- Least common multiple
+				table.clear(t)
+				table.clear(p1)
+
+				table.move(m, 1, #m, 1, t)
+				table.move(n, 1, #n, 1, p1)
+				while #p1 ~= 1 or p1[1] ~= 0 do 
+					div(t, p1, p2, p3, p4, p5)
+					table.clear(p2)
+					table.move(t, 1, #t, 1, p2)
+
+					table.clear(t)
+					table.move(p1, 1, #p1, 1, t)
+					table.clear(p1)
+					table.move(p3, 1, #p3, 1, p1)
+					table.clear(p3)
+					table.move(p2, 1, #p2, 1, p3)
+				end
+
+				table.clear(p2)
+				return div(mul(m, n, p1), table.move(t, 1, #t, 1, p2), t, p3, p4, p5)
+			end) --local e = 0
+			local pow = wave.protected:GCProtect(function(m, n, d, t, p1, p2, p3, p4, p5, p6)		-- Modular exponentiation
+				table.clear	(t)
+				table.clear	(p1)
+				t[1] = 1
+				table.move	(m, 1, #m, 1, p1)
+				local c, i = n[#n] + 16777216, #n
+
+				for _ = 1, math.log(n[1], 2) + (#n - 1) * 24 + 1 do --e+=1 if e % 800 == 0 then task.wait() end
+					if c % 2 == 1 then
+						div(mul(p1, t, p2), d, p3, t, p4, p5)
+					end
+					c = bit32.rshift(c, 1)
+					if c == 1 then
+						i -= 1
+						c = (n[i] or 0) + 16777216
+					end
+
+					table.clear(p2)
+					div(mul(table.move(p1, 1, #p1, 1, p2), p2, p3), d, p4, p1, p5, p6)
+				end
+
+				return t
+			end)
+			local inv = wave.protected:GCProtect(function(m, n, t, p1, p2, p3, p4, p5, p6, p7, p8) -- Modular multiplicative inverse
+				table.clear	(t)
+				table.clear	(p1)
+				table.clear	(p2)
+				table.clear	(p3)
+				t[1] 	= 1
+				p1[1] 	= 0
+				table.move	(m, 1, #m, 1, p2)
+				table.move	(n, 1, #n, 1, p3)
+				local s1, s2, s3 = true, true, true
+
+				while #p2 ~= 1 or p2[1] ~= 1 do
+					div(p2, p3, p4, p5, p6, p7)
+					table.clear	(p5)
+					table.move	(p3, 1, #p3, 1, p5)
+					div(p2, p5, p6, p3, p7, p8)
+					table.clear	(p2)
+					table.move	(p5, 1, #p5, 1, p2)
+					table.clear	(p5)
+					table.move	(p1, 1, #p1, 1, p5)
+
+					s3 = s2
+					mul(p1, p4, p6)
+					if s1 == s2 then
+						_, s2 = sub(t, p6, p1)
+						s2 = if s1 then s2 else not s2
+					else
+						add(t, p6, p1)
+						s2 = s1
+					end
+					table.move	(p5, 1, #p5, 1, t)
+					s1 = s3
+				end
+				if not s1 then 
+					table.clear(p1)
+					sub(n, table.move(t, 1, #t, 1, p1), t)
+				end
+
+				return t
+			end)
+
+			-- PROBABLY PRIME CHECKERS
+			local isDivisible = wave.protected:GCProtect(function(a, p1, p2, p3, p4, p5) -- Checks if it is divisible by the first primes
+				table.clear(p1)
+				if #a == 1 and table.find(primes, a[1]) then
+					return false
+				end
+				for _, p in pairs(primes) do
+					p1[1] = p
+					div(a, p1, p3, p2, p4, p5)
+					if #p2 == 1 and p2[1] == 0 then
+						return true
+					end
+				end
+			end)
+			local isPrime = wave.protected:GCProtect(function(a, cnt, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, r) -- General test
+				table.clear(p1)
+				table.clear(p3)
+				if #a == 0 then
+					return false
+				elseif #a == 1 and table.find(primes, a[1]) then
+					return true
+				end
+				p1[1] = 1
+				local k, c, i = 0, nil, nil
+
+				sub(a, p1, p2)
+				for _ = 1, cnt do -- Fermat's little theorem
+					p1[1] = r:NextInteger	(0, p2[1] - 1)
+					for j = 2, #p2 do
+						p1[j] = r:NextInteger(0, 16777215)
+					end
+					p1[#p2] = math.max(p1[#p2], 2)
+					while p1[1] == 0 do
+						table.remove(p1, 1)
+					end
+
+					pow(p1, p2, a, p4, p5, p6, p7, p8, p9, p10)
+					if #p4 ~= 1 or p4[1] ~= 1 then
+						return false
+					end
+				end
+
+				table.move(p2, 1, #p2, 1, p3)
+				i = #p2
+				while p2[i] == 0 do
+					k += 24
+					p3[i] = nil
+					i -= 1
+				end
+				while p3[i] % 2 == 0 do
+					k += 1
+					c  = 0
+					for j = 1, #p3 do
+						p3[j], c = bit32.rshift(p3[j], 1) + bit32.lshift(c, 23), p3[j] % 2
+					end
+					if p3[1] == 0 then
+						table.remove(p3, 1)
+						i -= 1
+					end
+				end
+				for _ = 1, cnt do -- Miller-Rabin primality test
+					p1[1] = r:NextInteger	(0, p2[1] - 1)
+					for j = 2, #p2 do
+						p1[j] = r:NextInteger(0, 16777215)
+					end
+					p1[#p2] = math.max(p1[#p2], 2)
+					while p1[1] == 0 do
+						table.remove(p1, 1)
+					end
+
+					pow(p1, p3, a, p4, p5, p6, p7, p8, p9, p10)
+					if #p4 == 1 and p4[1] == 1 or cmp(p2, p4) == nil then
+						continue
+					end
+					i = true
+					for _ = 1, k - 1 do
+						table.clear	(p1)
+						p1[1] = 2
+						table.clear	(p5)
+						table.move	(p4, 1, #p4, 1, p5)
+						div(mul(p4, p5, p1), a, p5, p4, p6, p7)
+						if #p4 == 1 and p4[1] == 1 then
+							return false
+						elseif cmp(p2, p4) == nil then
+							i = false
+							break
+						end
+					end
+					if i then
+						return false
+					end
+				end
+				return true
+			end)
+
+			-- INITIALIZATION FUNCTIONS
+			local convertType = wave.protected:GCProtect(function(a, p1, p2, p3, p4) -- Converts data to bigInt if possible
+				local t, n = {}, nil
+				if type(a) == "number" then
+					assert(a == a and a >= 0 and math.abs(a) ~= math.huge, "Unable to cast value to bigInt")
+					a = math.floor(a)
+					while a ~= 0 do
+						table.insert(t, 1, a % 16777216)
+						a = math.floor(a / 16777216)
+					end
+				elseif type(a) == "string" then
+					if string.match(a, "^[0_]*$") then
+						t[1] = 0
+					elseif string.match(a, "^_*0_*[Xx][%x_]+$") or string.match(a, "^_*0_*[Bb][01_]+$") then
+						local x = if string.match(a, "[Xx]") then 16 else 2
+						n = string.gsub(string.match(a, "0_*.[0_]*(.+)"), "_", "")
+						n = string.rep("0", - string.len(n) % if x == 16 then 6 else 24) .. n
+						for i in string.gmatch(n, "(......" .. if x == 16 then ")" else "..................)")
+						do
+							table.insert(t, tonumber(i, x))
+						end
+					elseif string.match(a, "^_*[%d_]*%.?[%d_]*$") then
+						table.clear(p1)
+						table.clear(p2)
+						p1[1] = 10000000
+						p2[1] = 1
+						n = string.gsub(string.match(a, "_*[0_]*([%d_]*)%.?.-$"), "_", "")
+						n = string.rep("0", - string.len(n) % 7) .. n
+						for i in string.gmatch(string.reverse(n), "(.......)") do
+							table.clear(p3)
+							p3[1] = tonumber(string.reverse(i))
+							mul(p3, p2, p4)
+							table.clear(p3)
+							add(p4, table.move(t, 1, #t, 1, p3), t)
+							table.clear(p3)
+							mul(table.move(p2, 1, #p2, 1, p3), p1, p2)
+						end
+					else
+						error("Unable to cast value to bigInt")
+					end
+				elseif type(a) == "table" then
+					for i, j in ipairs(a) do
+						assert(type(j) == "number" and math.floor(j) == j and 0 <= j and j < 16777216,
+							"Unable to cast value to bigInt")
+						t[i] = j
+					end
+					if #t == 0 then
+						t[1] = 0
+					end
+				else
+					error("Unable to cast value to bigInt")
+				end
+				return t
+			end)
+
+			-- MAIN ALGORITHM
+			local RSA = {
+				-- Keys generation constructor
+				newKeys = function(p : number | bigInt, q : bigInt?, e : bigInt?) 			: (bigInt, bigInt,
+					bigInt, bigInt, bigInt, bigInt)
+					local p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14 = {}, {}, {}, {}, {}, {}, {}
+					, {}, {}, {}, {}, {}, {}, {}
+					if q == nil then
+						local l = math.floor(tonumber(p) or 256)
+						assert(2 < l and l < 4294967296, "Invalid key length")
+						local r1, r2, mm = Random.new(), Random.new(), bit32.lshift(1, (l - 1) % 24)
+						local ml = bit32.lshift(mm, 1) - 1
+						p, q, l = {}, {}, math.ceil(l / 24)
+
+						while not isPrime(p, 5, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, r1) do
+							p[1] = r1:NextInteger(mm, ml)
+							for i = 2, l do
+								p[i] = r1:NextInteger(0, 16777215)
+							end
+							if p[l] % 2 == 0 then
+								p[l] += 1
+							end
+
+							table.clear(p1)
+							p1[1] = 2
+							while isDivisible(p, p2, p3, p4, p5, p6) do
+								add(table.move(p, 1, #p, 1, p2), p1, p)
+							end
+						end
+						while cmp(p, q) == nil or not isPrime(q, 5, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, r2) do
+							q[1] = r2:NextInteger(mm, ml)
+							for i = 2, l do
+								q[i] = r2:NextInteger(0, 16777215)
+							end
+							if q[l] % 2 == 0 then
+								q[l] += 1
+							end
+
+							table.clear(p1)
+							p1[1] = 2
+							while isDivisible(q, p2, p3, p4, p5, p6) do
+								add(table.move(q, 1, #q, 1, p2), p1, q)
+							end
+						end
+					else
+						p, q = convertType(p, p1, p2, p3, p4), convertType(q, p1, p2, p3, p4)
+						e = if e == nil then nil else convertType(e, p1, p2, p3, p4)
+					end
+					table.clear(p1)
+
+					p1[1] = 1
+					lcm(sub(p, p1, p2), sub(q, p1, p3), p4, p5, p6, p7, p8, p9)
+					e = if not e then {if #p4 == 1 and p4[1] < 65538 then 3 else 65537} else e
+					div(p4, e, p6, p5, p7, p8)
+					assert(#p5 ~= 1 or p5[1] ~= 0, "Invalid values for 'p', 'q' and/or 'e'")
+					inv(e, p4, p6, p7, p8, p9, p10, p11, p12, p13, p14)
+					div(p6, p2, p8, p7, p9, p10)
+					div(p6, p3, p9, p8, p10, p11)
+					return mul(p, q, p5), e, p6, p, q, p7, p8, inv(q, p, p9, p10, p11, p12, p13, p14, {}, {}, {})
+				end,
+				-- Encryption, decryption and sign
+				crypt = function(n : bigInt, text : bigInt, key : bigInt) 				: bigInt
+					local p1, p2, p3, p4 = {}, {}, {}, {}
+					n, text = convertType(n, p1, p2, p3, p4), convertType(text, p1, p2, p3, p4)
+					assert(cmp(n, text), "Text must not exceed 'n'")
+					key 	= convertType(key, p1, p2, p3, p4)
+
+					return pow(text, key, n, p1, p2, p3, p4, {}, {}, {})
+				end,
+				decrypt_CRT = function(n : bigInt, cipherText : bigInt, p: bigInt, q : bigInt, d_p : bigInt, d_q :
+					bigInt, q_inv : bigInt) : bigInt
+						local p1, p2, p3, p4, p5, p6, p7, p8 = {}, {}, {}, {}, {}, {}, {}, {}
+						n, cipherText 		= convertType(n, p1, p2, p3, p4), convertType(cipherText, p1, p2, p3, p4)
+						p, q, d_q, q_inv 	= convertType(p, p1, p2, p3, p4), convertType(q, p1, p2, p3, p4),
+						convertType(d_q, p1, p2, p3, p4), convertType(q_inv, p1, p2, p3, p4)
+
+						pow(cipherText, d_p, p, p1, p2, p3, p4, p5, p6, p7)
+						pow(cipherText, d_q, q, p2, p3, p4, p5, p6, p7, p8)
+						sub(p1, p2, p3)
+						if cmp(p1, p2) == false then
+							div(q, p, p4, p5, p6, p7)
+							if #p5 ~= 1 or p5[1] ~= 0 then
+								table.clear(p5)
+								table.clear(p6)
+								p6[1] = 1
+								add(table.move(p4, 1, #p4, 1, p5), p6, p4)
+							end
+							table.clear(p5)
+							sub(mul(p4, p, p6), table.move(p3, 1, #p3, 1, p5), p3)
+						end
+						div(mul(p3, q_inv, p4), p, p5, p3, p6, p7)
+						div(add(mul(p3, q, p1), p2, p3), n, p2, p4, p5, p6)
+
+						return p4
+					end,
+				-- Signature verification
+				verify = function(hash_1 : bigInt, hash_2 : bigInt) 						: boolean
+					local p1, p2, p3, p4 = {}, {}, {}, {}
+					hash_1, hash_2 = convertType(hash_1, p1, p2, p3, p4), convertType(hash_2, p1, p2, p3, p4)
+
+					return cmp(hash_1, hash_2) == nil
+				end,
+
+				-- Data type conversion of bigInt and bytes
+				to_bigInt 	= function(a : bytes) 	: bigInt
+					local r, n, x
+					if type(a) == "number" then
+						if math.abs(a) == math.huge then
+							r = table.create(6, 0)
+							table.insert		(r, 1, 240)
+							table.insert		(r, 1, if a < 0 then 255 else 127)
+						elseif a == 0 then
+							r = table.create(7, 0)
+							table.insert		(r, 1, if 1 / a < 0 then 128 else 0)	
+						elseif a ~= a then
+							r = {127, 240, 0, 0, 0, 0, 0, 1}
+						elseif math.abs(a) < 2.2250738585072014e-308 then
+							r, a = {if a < 0 then 128 else 0}, math.abs(a) 
+							local a, e = math.frexp(a)
+							a 	 *= 2 ^ - (e + 970)
+							for i = 1, 7 do
+								table.insert	(r, 2, a % 256)
+								a = math.floor	(a / 256)
+							end
+						else
+							r, a = {if a < 0 then 128 else 0}, math.abs(a)
+							local e = math.round(math.log(a, 2))
+							r[2]  = (e + 1023) % 16 * 16
+							r[1] += math.floor((e + 1023) / 16)
+							a = (a * 2 ^ - e % 1) * 4503599627370496
+							for i = 1, 6 do
+								table.insert	(r, 3, a % 256)
+								a = math.floor	(a / 256)
+							end
+							r[2] += a
+						end
+					elseif type(a) == "string" then
+						assert(a ~= "", "Unable to cast value to bytes")
+						r = {}
+						for i = 1, string.len(a), 7997 do
+							table.move({string.byte(a, i, i + 7996)}, 1, 7997, i, r)
+						end
+					elseif type(a) == "table" then
+						assert(#a ~= 0, "Unable to cast value to bytes")
+						r = {}
+						for _, i in ipairs(a) do
+							assert(type(i) == "number" and math.floor(i) == i and 0 <= i and i < 256,
+								"Unable to cast value to bytes")
+							r[i] = i
+						end
+					end
+
+					for _ = 1, - #r % 3 do
+						table.insert(r, 1, 0)
+					end
+					for _ = 1, #r / 3 do
+						n = bit32.lshift(r[1], 16) + bit32.lshift(r[2], 8) + r[3]
+						if x or n ~= 0 then
+							table.insert(r, n)
+							x = true
+						end
+						table.remove(r, 1)
+						table.remove(r, 1)
+						table.remove(r, 1)
+					end
+					return r
+				end,
+				to_bytes 	= function(a : bigInt) 	: bytes
+					a = convertType(a)
+
+					for _ = 1, #a do
+						table.insert(a, bit32.rshift(a[1], 16))
+						table.insert(a, bit32.rshift(a[1], 8) % 256)
+						table.insert(a, a[1] % 256)
+						table.remove(a, 1)
+					end
+					return a
+				end
+			}
+			
+			wave.protected:ProtectTable(RSA)
+			crypt.RSA = RSA
+		end
+
+		do -- RSA JWT
+			local jwt = {}
+			
+			local splitJWT = wave.protected:GCProtect(function(token)
+				local header, payload, signature = token:match("([^.]+)%.([^.]+)%.([^.]+)")
+				return header, payload, signature
+			end)
+
+			-- Function to check expiration and not-before times
+			local isValidTime = wave.protected:GCProtect(function(payload)
+				payload = utils.http.json.decode(payload)
+				if not payload then return false, "Invalid payload JSON" end
+
+				local now = os.time()
+				if payload.exp and now > payload.exp then
+					return false, "Token has expired"
+				end
+				if payload.nbf and now < payload.nbf then
+					return false, "Token is not yet valid"
+				end
+
+				return true
+			end)
+
+			-- Function to verify an RSA JWT
+			function jwt.verifyRSA(token, publicKey)
+				if not crypt.hash then
+					return false, "SHA256 Hashing not supported"
+				end
+
+				local headerB64, payloadB64, signatureB64 = splitJWT(token)
+				if not headerB64 or not payloadB64 or not signatureB64 then
+					return false, "Invalid JWT format"
+				end
+
+				-- Decode parts
+				local header = crypt.base64.decode(headerB64)
+				local payload = crypt.base64.decode(payloadB64)
+				local signature = crypt.base64.decode(signatureB64)
+
+				-- Check expiration and not-before
+				local timeValid, timeError = isValidTime(payload)
+				if not timeValid then
+					return false, timeError
+				end
+
+				local messageHash = crypt.hash(headerB64 ..".".. payloadB64, "sha256")
+				local decryptedSignature = crypt.RSA.crypt(publicKey.n, signature, publicKey.d)
+
+				if crypt.RSA.verify(decryptedSignature, messageHash) then
+					return true, payload
+				else
+					return false, "Invalid signature"
+				end
+			end
+
+			wave.protected:ProtectTable(jwt)
+			crypt.JWT = jwt
+		end]]
+
+		wave.protected:ProtectTable({crypt, base64})
+		utils.crypt = crypt
+	end
+
+	-- Clipboard
+
+	do
+		local clipboard = {}
+		local err = "No clipboard found."
+		local set = wave.env.setclipboard
+
+		clipboard.OnClipboardUpdated = wave.signals.newEvent()
+		function clipboard:Set(str: string)
+			str = tostring(str)
+			
+			if set(str) == 404 then
+				wave.console.warn(err)
+			else
+				clipboard.OnClipboardUpdated:Fire(str)
+			end
+
+			return self
+		end
+
+		function clipboard:Get()
+			local clip = wave.env.getclipboard()
+			if clip == 404 then
+				wave.console.warn(err)
+				return err
+			end
+
+			return clip
+		end
+
+		wave.protected:ProtectTable(clipboard)
+		utils.clipboard = clipboard
+	end
+
+	-- Versioning
+
+	do
+		local versioning = {}
+		local current = "0"
+
+		wave.enums:AddEnum("versioning", "newer", "older", "match")
+
+		function versioning:SetVersion(ver: string)
+			current = ver
+			return self
+		end
+
+		function versioning:GetCurrentVersion()
+			return current
+		end
+
+		function versioning:Compare(ver: string)
+			local this, other = utils.strings.split(current, "."), utils.strings.split(ver, ".")
+			local max = utils.maths.max(#this, #other) +1
+			local thisScore, otherScore = 0, 0
+
+			for i, v in ipairs(this) do
+				this[i] = tonumber(v)
+			end
+
+			for i, v in ipairs(other) do
+				other[i] = tonumber(v)
+			end
+
+			for i=1, max -1 do
+				if this[i] and other[i] then
+					if this[i] > other[i] then
+						thisScore += max -i
+
+					elseif this[i] < other[i] then
+						otherScore += max -i
+
+					end
+				elseif this[i] then
+					if thisScore >= otherScore and this[i] > 0 then
+						thisScore += max -i
+					end
+				else
+					if otherScore >= thisScore and other[i] > 0 then
+						otherScore += max -i
+					end
+				end
+			end
+
+			if thisScore > otherScore then
+				return wave.enums.versioning.older
+			elseif thisScore < otherScore then
+				return wave.enums.versioning.newer
+			else
+				return wave.enums.versioning.match
+			end
+		end
+
+		wave.protected:ProtectTable(versioning)
+		utils.versioning = versioning
+	end
+
+	-- Http
+
+	do
+		local http, json = {}, {}
+		local HTTP_SERVICE: HttpService = wave.protected:GetService("HttpService")
+		local RUN_SERVICE: RunService = wave.protected:GetService("RunService")
+
+		http.OnErrorCodeRecived = wave.signals.newEvent()
+		http.OnUrlOpened = wave.signals.newEvent()
+
+		function http:OpenUrl(url: string) 
+			wave.env.openurl(url) -- Opens or Copies to clipboard
+			http.OnUrlOpened:Fire(url)
+			return self
+		end
+		
+		function http:UrlEncode(str: string)
+			return HTTP_SERVICE:UrlEncode(str)
+		end
+
+		function http:Request(url: string, method: string?, headers: {any}?, body: any?): string
+			if not wave.env.request then
+				return false, "Requests are not supported by the executor."
+			end
+
+			local succ, req = pcall(wave.env.request, {
+				Url = url,
+				Method = method or "GET",
+				Headers = headers,
+				Body = type(body) == "table" and self.json.encode(body) or body
+			});
+
+			if req == 404 then return false, {} end
+			if succ == false or req.Success == false then
+				self.OnErrorCodeRecived:Fire(req.StatusCode)
+				return false, req;
+			end
+
+			return req;
+		end
+		
+		if wave.protected:IsStudio() then
+			local repStorage = wave.protected:GetService("ReplicatedStorage")
+			local httpHandler = repStorage:WaitForChild("HttpHandler")
+			http.Request = function(self, url: string, method: string?, headers: {any}?, body: any?)
+				local req = httpHandler:InvokeServer(url, method, headers, body)
+				if req.Success == false or req.StatusCode ~= 200 then
+					self.OnErrorCodeRecived:Fire(req.StatusCode)
+					return false, req;
+				end
+				
+				return req
+			end
+		end
+
+		local _game = wave.protected:GetReference(game)
+		function http:Get(url: string)
+			local succ, res = pcall(function()
+				return wave.protected:IsStudio() and HTTP_SERVICE:GetAsync(url) or _game:HttpGet(url, true)
+			end)
+			
+			return succ and res or nil
+		end
+
+		function json.encode(data: any)
+			return HTTP_SERVICE:JSONEncode(data)
+		end
+
+		function json.decode(data: string)
+			local success, result = pcall(function()
+				return HTTP_SERVICE:JSONDecode(data)
+			end)
+
+			if not success then
+				wave.console.warn(debug.traceback("Unable to parse JSON: " .. result, 2))
+				return false, result
+			end
+
+			return result
+		end
+
+		wave.protected:ProtectTable({http, json})
+		http.json = json
+		utils.http = http
+	end
+
+	
+	do
+		local highlighter = {}
+		local keywords = {
+			lua = { "and", "break", "or", "else", "elseif", "if", "then", "until", "repeat", "while", "do", "for", "in", "end", "local", "return", "function", "export" },
+			rbx = {
+				"game", "workspace", "script", "math", "string", "table", "task", "wait", "select", "next", "Enum",
+				"error", "warn", "tick", "assert", "shared", "loadstring", "tonumber", "tostring", "type",
+				"typeof", "unpack", "print", "Instance", "CFrame", "Vector3", "Vector2", "Color3", "UDim", "UDim2", "Ray", "BrickColor",
+				"OverlapParams", "RaycastParams", "Axes", "Random", "Region3", "Rect", "TweenInfo",
+				"collectgarbage", "not", "utf8", "pcall", "xpcall", "_G", "setmetatable", "getmetatable", "os", "pairs", "ipairs"
+			},
+			operators = { "#", "+", "-", "*", "%", "/", "^", "=", "~", "=", "<", ">", ",", ".", "(", ")", "{", "}", "[", "]", ";", ":" }
+		}
+
+		local colors
+		local function createKeywordSet(keywords)
+			local keywordSet = {}
+			for _, keyword in ipairs(keywords) do
+				keywordSet[keyword] = true
+			end
+			return keywordSet
+		end
+
+		local luaSet = createKeywordSet(keywords.lua)
+		local rbxSet = createKeywordSet(keywords.rbx)
+		local operatorsSet = createKeywordSet(keywords.operators)
+
+		local getHighlight = LPH_NO_VIRTUALIZE(function(tokens, index)
+			local token = tokens[index]
+
+			if colors[token .. "_color"] then
+				return colors[token .. "_color"]
+			end
+
+			if tonumber(token) then
+				return colors.numbers
+			elseif token == "nil" then
+				return colors.null
+			elseif token:sub(1, 2) == "--" then
+				return colors.comment
+			elseif operatorsSet[token] then
+				return colors.operator
+			elseif luaSet[token] then
+				return colors.rbx
+			elseif rbxSet[token] then
+				return colors.lua
+			elseif token:sub(1, 1) == "\"" or token:sub(1, 1) == "\'" then
+				return colors.str
+			elseif token == "true" or token == "false" then
+				return colors.boolean
+			end
+
+			if tokens[index + 1] == "(" then
+				if tokens[index - 1] == ":" then
+					return colors.self_call
+				end
+
+				return colors.call
+			end
+
+			if tokens[index - 1] == "." then
+				if tokens[index - 2] == "Enum" then
+					return colors.rbx
+				end
+
+				return colors.local_property
+			end
+		end)
+		
+		function highlighter.setTokenColors(tokenColors: {any})
+			colors = tokenColors or {
+				numbers = Color3.fromRGB(255, 198, 0),
+				boolean = Color3.fromRGB(214, 128, 23),
+				operator = Color3.fromRGB(232, 210, 40),
+				lua = Color3.fromRGB(160, 87, 248),
+				rbx = Color3.fromRGB(146, 180, 253),
+				str = Color3.fromRGB(56, 241, 87),
+				comment = Color3.fromRGB(103, 110, 149),
+				null = Color3.fromRGB(79, 79, 79),
+				call = Color3.fromRGB(130, 170, 255),
+				self_call = Color3.fromRGB(227, 201, 141),
+				local_color = Color3.fromRGB(199, 146, 234),
+				function_color = Color3.fromRGB(241, 122, 124),
+				self_color = Color3.fromRGB(146, 134, 234),
+				local_property = Color3.fromRGB(129, 222, 255),
+			}
+		end
+
+		local operators = {
+			["+"] = true, ["-"] = true, ["*"] = true, ["/"] = true, ["%"] = true,
+			["^"] = true, ["#"] = true, ["="] = true, ["<"] = true, [">"] = true,
+			["("] = true, [")"] = true, ["{"] = true, ["}"] = true, ["["] = true,
+			["]"] = true, [";"] = true, [":"] = true, [","] = true, ["."] = true,
+		}
+
+		highlighter.tokenize = LPH_NO_VIRTUALIZE(function(source, maxc)
+			maxc = maxc or 200000
+			source = source:sub(1, maxc)
+
+			local tokens = {}
+			local buf = {}
+			local state = "normal"
+			local delim      -- for strings: "'" or '"' or nil
+			local long_delim -- for long strings/comments: "]]"
+			local i, n = 1, #source
+			local sub, find, insert = string.sub, string.find, table.insert
+
+			local function flush()
+				if #buf > 0 then
+					insert(tokens, table.concat(buf))
+					buf = {}
+				end
+			end
+
+			while i <= n do
+				local ch = sub(source, i, i)
+				local nxt2 = sub(source, i, i+1)
+
+				if state == "normal" then
+					-- Long comment?
+					if sub(source, i, i+3) == "--[[" then
+						flush()
+						state = "long_comment"
+						long_delim = "]]"
+						buf = {"--[["}
+						i = i + 4
+
+						-- Short comment?
+					elseif nxt2 == "--" then
+						flush()
+						state = "comment"
+						buf = {"--"}
+						i = i + 2
+
+						-- Long string?
+					elseif nxt2 == "[[" then
+						flush()
+						state = "long_string"
+						long_delim = "]]"
+						buf = {"[["}
+						i = i + 2
+
+						-- Short string?
+					elseif ch == '"' or ch == "'" then
+						flush()
+						state = "string"
+						delim = ch
+						buf = {ch}
+						i = i + 1
+
+						-- Operator/punctuation
+					elseif operators[ch] then
+						flush()
+						insert(tokens, ch)
+						i = i + 1
+
+						-- Identifier/number
+					elseif ch:match("[%w_]") then
+						buf[#buf+1] = ch
+						i = i + 1
+
+						-- Anything else (whitespace, etc.)
+					else
+						flush()
+						insert(tokens, ch)
+						i = i + 1
+					end
+
+				elseif state == "comment" then
+					buf[#buf+1] = ch
+					i = i + 1
+					if ch == "\n" then
+						flush()
+						state = "normal"
+					end
+
+				elseif state == "long_comment" then
+					buf[#buf+1] = ch
+					-- detect closing ]] 
+					if sub(source, i-1, i) == long_delim then
+						flush()
+						state = "normal"
+					end
+					i = i + 1
+
+				elseif state == "string" then
+					buf[#buf+1] = ch
+					i = i + 1
+					-- end on unescaped delim or on newline
+					if (ch == delim and sub(source, i-2, i-2) ~= "\\") or ch == "\n" then
+						flush()
+						state = "normal"
+					end
+
+				elseif state == "long_string" then
+					buf[#buf+1] = ch
+					-- detect closing ]]
+					if sub(source, i-1, i) == long_delim then
+						flush()
+						state = "normal"
+					end
+					i = i + 1
+
+				end
+				
+				if i%10000 == 0 then task.wait() end
+			end
+
+			flush()
+			return tokens
+		end)
+
+		-- apply getHighlight() to each token
+		highlighter.run = LPH_NO_VIRTUALIZE(function(source, maxc)
+			local tokens = highlighter.tokenize(source, maxc)
+			for idx, tok in ipairs(tokens) do
+				local hl = getHighlight(tokens, idx)
+				if hl then
+					-- escape < and >
+					local esc = tok:gsub("<","&lt;"):gsub(">","&gt;")
+					tokens[idx] = string.format(
+						'<font color="#%s">%s</font>',
+						hl:ToHex(),
+						esc
+					)
+				end
+			end
+			return table.concat(tokens)
+		end)
+
+		highlighter.setTokenColors()
+		utils.highlighter = wave.protected:ProtectTable(highlighter)
+	end
+
+	-- Inputs
+
+	local isDraggingSliders = false do
+		local inputs, baseInput, buttons, sliders, tabs, editors = {}, {}, {}, {}, {}, {}	
+		local buttonsCache, sliderCache, tabCache, editorCache, dragCache = wave.protected:GCProtect({}), wave.protected:GCProtect({}), wave.protected:GCProtect({}), wave.protected:GCProtect({}), wave.protected:GCProtect({})
+		local buttonsCount, sliderCount, tabCount, editorCount = 0, 0, 0, 0
+		local tasks = wave.protected:GetReference(task)
+		
+		local setts = {
+			drag_min = 15,
+			long_click = 0.5,
+			multi_click = 0.35,
+			max_delta = Vector2.new(100, 100)
+		}
+
+		local USER_INPUT_SERVICE = wave.protected:GetService("UserInputService")
+		local PLAYERS = wave.protected:GetService("Players")
+		
+		local playerGui = PLAYERS.LocalPlayer:WaitForChild("PlayerGui")
+		local function overZero(clicks: number)
+			return clicks < 1 and 1 or clicks
+		end
+
+		wave.protected:GCProtect(overZero)
+		baseInput.enabled = true
+		
+		local thumbstick
+		USER_INPUT_SERVICE.InputBegan:Connect(LPH_NO_VIRTUALIZE(function()
+			if thumbstick then return end
+			local pos = USER_INPUT_SERVICE:GetMouseLocation()
+			local guis = playerGui:GetGuiObjectsAtPosition(pos.X, pos.Y)
+
+			for _, v in ipairs(guis) do
+				if wave.utils.strings.find(v.Name, "Thumbstick") then 
+					thumbstick = USER_INPUT_SERVICE.InputEnded:Once(function() thumbstick = nil end)
+					break
+				end
+			end
+		end))
+		
+		function baseInput:Disable()
+			self.enabled = false
+			return self
+		end
+
+		function baseInput:Enable()
+			self.enabled = true
+			return self
+		end
+
+		function inputs.isDraggable(instance: instance)
+			return (dragCache[instance] or (instance.instance and instance.instance.Draggable)) and true or false
+		end
+
+		function inputs.makeDraggable(instance)
+			if inputs.isDraggable(instance) then return end
+
+			local dragging, previousMousePos = false, nil
+			local object: GuiObject = instance.instance
+			local initialMousePos, startPos = nil, nil
+
+			object.Active = true
+			local Update = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(dt)
+				if not dragging or isDraggingSliders then return end
+				if not object or not object.Active or not object.Visible then return end
+
+				local currentMousePos = USER_INPUT_SERVICE:GetMouseLocation()
+				if previousMousePos and (currentMousePos -previousMousePos).Magnitude > 100 then
+					previousMousePos = nil
+					dragging = false
+					return
+				end
+				
+				previousMousePos = currentMousePos
+				local delta = currentMousePos -initialMousePos
+				local xGoal = startPos.X.Offset +delta.X
+				local yGoal = startPos.Y.Offset +delta.Y
+				
+				local viewportSize = object.Parent.AbsoluteSize
+				local objectSize = object.AbsoluteSize
+				local anchor = object.AnchorPoint
+				
+				local xOffsize = objectSize.X -(objectSize.X *anchor.X) -viewportSize.Y *.1
+				local yOffsize = objectSize.Y -(objectSize.Y *anchor.Y) -viewportSize.Y *.1
+
+				xGoal = utils.maths.clamp(xGoal, -xOffsize, viewportSize.X +xOffsize)
+				yGoal = utils.maths.clamp(yGoal, -yOffsize, viewportSize.Y +yOffsize)
+				object.Position = UDim2.fromOffset(xGoal, yGoal)
+			end))
+			
+			local inputConn = object.InputBegan:Connect(wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(input)
+				if not dragging and not thumbstick and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+					dragging = true
+					initialMousePos = USER_INPUT_SERVICE:GetMouseLocation()
+
+					local pos = object.Position
+					local viewportSize = object.Parent.AbsoluteSize
+					startPos = UDim2.fromOffset(pos.X.Scale * viewportSize.X + pos.X.Offset, pos.Y.Scale * viewportSize.Y + pos.Y.Offset)
+					object.Position = startPos
+
+					input.Changed:Connect(function()
+						if input.UserInputState == Enum.UserInputState.End then dragging = false end
+					end)
+				end
+			end)))
+			
+			wave.renderer:BindToRenderer(`{instance.interface.id}-{instance.id}`, wave.renderer.FrameworkPriority, Update):Render()
+			dragCache[instance] = {inputConn}
+		end
+
+		function inputs.makeUndraggable(instance: instance)
+			instance.instance.Draggable = false
+			local inputs = dragCache[instance]
+			
+			if inputs then
+				local binding = wave.renderer:GetBinding(`{instance.interface.id}-{instance.id}`)
+				if not binding then return end
+				
+				binding:Unbind()
+				dragCache[instance] = nil
+				for _, input in ipairs(inputs) do
+					if input then input:Disconnect() end
+				end
+			end
+		end
+
+		function inputs.hasBeenDragged(lastPos: UDim2, newPos: UDim2)
+			if not lastPos or not newPos then
+				return false
+			end
+
+			return math.abs((lastPos - newPos).Magnitude) > setts.drag_min
+		end
+
+		function inputs:Get(id: string): holdable|multi|unified|switch|vertical
+			return buttonsCache[id] or sliderCache[id]
+		end
+
+		-- Buttons
+
+		function buttons.holdable(button: instance, waitForRelease: boolean, id: string): holdable
+			id = id or button.id
+
+			if buttonsCache[id] then
+				buttonsCount += 1
+				id = "Holdable_" ..buttonsCount
+			end
+
+			local conn, conn2 = nil, nil
+			local input = utils.tables.concatenate({
+				button = button,
+				id = id
+
+			}, baseInput)
+
+			input.OnLongPress = wave.signals.newEvent()
+			input.OnShortPress = wave.signals.newEvent()
+			local fetch = wave.signals.newEvent()
+
+			function input:SetId(id: string)
+				if buttonsCache[id] then
+					wave.console.error("Input id already in use.")
+				end
+				
+				buttonsCache[id] = self
+				buttonsCache[self.id] = nil
+				self.id = id
+
+				return self
+			end
+
+			function input:Remove()
+				fetch:Remove()
+				conn:Disconnect()
+				conn2:Disconnect()
+				self.OnLongPress:Remove()
+				self.OnShortPress:Remove()
+				buttonsCache[self.id] = nil
+
+				conn2 = nil
+				conn = nil
+			end
+
+			local btn: GuiButton = button.instance
+			local lastPos, lastPress = nil, nil
+
+			conn = btn.MouseButton1Down:Connect(LPH_NO_VIRTUALIZE(function()
+				if not input.enabled then
+					return
+				end
+
+				lastPos = btn.AbsolutePosition
+				lastPress = os.clock()
+
+				if not waitForRelease then
+					tasks.spawn(function()
+						local exit = false
+
+						local callback
+						callback = fetch:Connect(function()
+							if not exit then
+								input.OnShortPress:Fire(os.clock() - lastPress, btn)
+								exit = true
+							end
+						end)
+
+						tasks.wait(setts.long_click + 0.05)
+
+						if not exit then
+							exit = true
+							if inputs.isDraggable(button) and inputs.hasBeenDragged(lastPos, btn.AbsolutePosition) then
+								return
+							end
+
+							input.OnLongPress:Fire(os.clock() - lastPress, btn)
+						end
+					end)
+				end
+			end))
+
+			conn2 = btn.MouseButton1Up:Connect(LPH_NO_VIRTUALIZE(function()
+				if not input.enabled or (inputs.isDraggable(button) and inputs.hasBeenDragged(lastPos, btn.AbsolutePosition)) then
+					return
+				end
+
+				if not waitForRelease then
+					fetch:Fire()
+					return
+				end
+
+				local clickTime = os.clock() - lastPress
+				if lastPress and clickTime >= setts.long_click then
+					input.OnLongPress:Fire(clickTime, button)
+				else
+					input.OnShortPress:Fire(clickTime, button)
+				end
+			end))
+
+			wave.protected:ProtectTable(input)
+			buttonsCache[id] = input
+			return input
+		end
+
+		function buttons.multi(button: instance, clicks: number, id: string): multi
+			id = id or button.id
+
+			if buttonsCache[id] then
+				if id == button[1].id then
+					buttonsCount += 1
+					id = "Multi_" .. buttonsCount
+				else
+					wave.console.error("Input id already in use.")
+				end
+			end
+
+			local conn = nil
+			local input = utils.tables.concatenate({
+				clicks = overZero(clicks),
+				button = button,
+				id = id
+
+			}, baseInput)
+
+			input.OnMultiPress = wave.signals.newEvent()
+			local fetch = wave.signals.newEvent()
+
+			function input:SetClicks(clicks: number)
+				self.clicks = overZero(clicks)
+				return self
+			end
+
+			function input:SetId(id: string)
+				if buttonsCache[id] then
+					wave.console.error("Input id already in use.")
+				end
+				
+				buttonsCache[id] = self
+				buttonsCache[self.id] = nil
+				self.id = id
+
+				return self
+			end
+
+			function input:Remove()
+				fetch:Remove()
+				conn:Disconnect()
+				self.OnMultiPress:Remove()
+				buttonsCache[self.id] = nil
+
+				conn = nil
+			end
+
+			local btn: GuiButton = button.instance
+			local debounce, lastPress, streak = false, nil, 1
+
+			local function signal()
+				debounce = true
+				input.OnMultiPress:Fire(streak, button)
+				fetch:Fire()
+
+				lastPress = nil
+				streak = 1
+
+				tasks.wait(setts.long_click)
+				debounce = false
+			end
+
+			conn = btn.MouseButton1Click:Connect(LPH_NO_VIRTUALIZE(function()
+				if debounce or not input.enabled then
+					return
+				end
+
+				if lastPress and lastPress - os.clock() <= setts.long_click then
+					fetch:Fire()
+					streak += 1
+				end
+
+				if streak >= clicks then
+					signal()
+					return
+				end
+
+				tasks.spawn(function()
+					local exit = false
+
+					local callback
+					callback = fetch:Connect(function()
+						exit = true
+					end)
+
+					tasks.wait(setts.multi_click + 0.05)
+
+					if not exit then
+						signal()
+					end
+				end)
+
+				lastPress = os.clock()
+			end))
+
+			wave.protected:ProtectTable(input)
+			buttonsCache[id] = input
+			return input
+		end
+
+		function buttons.unified(id: string, ...: instance): unified
+			local btns = {...}
+
+			if id and typeof(id) == "string" then
+				id = id
+			elseif id then
+				utils.tables.insert(btns, id)
+				id = id.id
+			else
+				id = btns[1].id
+			end
+
+			if buttonsCache[id] then
+				if id == btns[1].id then
+					buttonsCount += 1
+					id = "Unified_" .. buttonsCount
+				else
+					wave.console.error("Input id already in use.")
+				end
+			end
+
+			local conns = wave.protected:GCProtect({})
+			local input = utils.tables.concatenate({
+				buttons = btns,
+				id = id
+
+			}, baseInput)
+
+			input.OnUnifiedPress = wave.signals.newEvent()
+
+			function input:SetId(id: string)
+				if buttonsCache[id] then
+					wave.console.error("Input id already in use.")
+				end
+				
+				buttonsCache[id] = self
+				buttonsCache[self.id] = nil
+				self.id = id
+
+				return self
+			end
+
+			function input:Remove()
+				self.OnUnifiedPress:Remove()
+
+				for _, conn in ipairs(conns) do
+					conn:Disconnect()
+					conn = nil
+				end
+
+				buttonsCache[self.id] = nil
+			end
+
+			for _, btn in ipairs(btns) do
+				utils.tables.insert(conns, btn.instance.MouseButton1Click:Connect(LPH_NO_VIRTUALIZE(function()
+					if not input.enabled then
+						return
+					end
+
+					input.OnUnifiedPress:Fire(btn)
+				end)))
+			end
+
+			wave.protected:ProtectTable(input)
+			buttonsCache[id] = input
+			return input
+		end
+
+		function buttons.switch(button: instance, startStatus: boolean, id: string): switch
+			id = id or button.id
+
+			if buttonsCache[id] then
+				if id == button[1].id then
+					buttonsCount += 1
+					id = "Switch_" .. buttonsCount
+				else
+					wave.console.error("Input id already in use.")
+				end
+			end
+
+			local conn = nil
+			local input = utils.tables.concatenate({
+				status = startStatus,
+				button = button,
+				id = id
+
+			}, baseInput)
+
+			input.OnSwitched = wave.signals.newEvent()
+			input.OnSwitchedOn = wave.signals.newEvent()
+			input.OnSwitchedOff = wave.signals.newEvent()
+
+			function input:SetId(id: string)
+				if buttonsCache[id] then
+					wave.console.error("Input id already in use.")
+				end
+				
+				buttonsCache[id] = self
+				buttonsCache[self.id] = nil
+				self.id = id
+
+				return self
+			end
+
+			function input:Remove()
+				conn:Disconnect()
+				self.OnSwitched:Remove()
+				self.OnSwitchedOn:Remove()
+				self.OnSwitchedOff:Remove()
+				buttonsCache[self.id] = nil
+
+				conn = nil
+			end
+
+			local btn: GuiButton = button.instance
+			local lastPress = nil
+
+			conn = btn.MouseButton1Click:Connect(LPH_NO_VIRTUALIZE(function()
+				if not input.enabled or (lastPress and os.clock() - lastPress < setts.long_click) then
+					return
+				end
+
+				lastPress = os.clock()
+				input.status = not input.status
+				local target: signalEvent = (input.status and input.OnSwitchedOn or input.OnSwitchedOff)
+
+				target:Fire(button)
+				input.OnSwitched:Fire(input.status, button)
+			end))
+
+			wave.protected:ProtectTable(input)
+			buttonsCache[id] = input
+			return input
+		end
+
+		-- Sliders
+
+		function sliders.vertical(buttons: {instance}, startPercentage, id: string): vertical
+			id = id or buttons[1].id
+
+			if sliderCache[id] then
+				if id == buttons[1].id then
+					sliderCount += 1
+					id = "Vertical_" .. sliderCount
+				else
+					wave.console.error("Input id already in use.")
+				end
+			end
+
+			local containers = wave.protected:GCProtect({})
+			for _, slider in ipairs(buttons) do
+				containers[slider] = slider:GetParent()
+				slider.Active = true
+			end
+
+			local conns = wave.protected:GCProtect({})
+			local input = utils.tables.concatenate({
+				percentage = startPercentage,
+				containers = containers,
+				buttons = buttons,
+				id = id
+
+			}, baseInput)
+
+			input.OnPercentageUpdated = wave.signals.newEvent()
+			input.OnPercentageChanged = wave.signals.newEvent()
+
+			function input:SetId(id: string)
+				if sliderCache[id] then
+					wave.console.error("Input id already in use.")
+				end
+				
+				sliderCache[id] = self
+				sliderCache[self.id] = nil
+				self.id = id
+
+				return self
+			end
+
+			function input:Remove()
+				self.OnPercentageUpdated:Remove()
+				self.OnPercentageChanged:Remove()
+
+				for _, conn in ipairs(conns) do
+					conn:Disconnect()
+					conn = nil
+				end
+
+				sliderCache[self.id] = nil
+			end
+
+			local isDragging, currentTouch = false, nil
+			local function percentageUpdate(size: UDim2)
+				local percentage = utils.maths.round(size.Y.Scale *100)/100
+
+				input.percentage = percentage
+				input.OnPercentageUpdated:Fire(percentage)
+
+				for slider, _ in pairs(containers) do
+					slider.instance.Size = size
+				end
+			end
+			
+			function input:SetPercentage(percentage: number, notUpdate: boolean)
+				local newSize = UDim2.fromScale(1, percentage)
+				if not isDraggingSliders then
+					percentageUpdate(newSize)
+				end
+
+				if self.enabled and not notUpdate then
+					self.OnPercentageChanged:Fire(percentage)
+				end
+
+				return self
+			end
+
+			input:SetPercentage(startPercentage)
+			local handleDragStart = LPH_NO_VIRTUALIZE(function(userInput, slider, container)
+				if input.enabled and (userInput.UserInputType == Enum.UserInputType.MouseButton1 or userInput.UserInputType == Enum.UserInputType.Touch) then
+					if not currentTouch then
+						local absPos = container.AbsolutePosition
+						local absSize = container.AbsoluteSize
+						local mouse = userInput.Position
+						currentTouch = userInput
+						isDragging = true
+						isDraggingSliders = true
+
+						local relativeY = mouse.Y - absPos.Y
+						local size = UDim2.new(1, 0, 1- utils.maths.clamp(relativeY / absSize.Y, 0, 1), 0)
+						slider.Size = size
+
+						percentageUpdate(size)
+					end
+				end
+			end)
+
+			local handleDragMove = LPH_NO_VIRTUALIZE(function(userInput)
+				if input.enabled and isDragging and (userInput == currentTouch or userInput.UserInputType == Enum.UserInputType.MouseMovement) then
+					local mouse = userInput.Position
+					local size = nil
+
+					for slider, container in pairs(containers) do
+						local absPos = container.instance.AbsolutePosition
+						local absSize = container.instance.AbsoluteSize
+
+						--if mouse.Y > absPos.Y and mouse.Y < absPos.Y + absSize.Y and mouse.X > absPos.X and mouse.X < absPos.X + absSize.X then
+						local relativeY = mouse.Y - absPos.Y
+						size = UDim2.new(1, 0, 1- utils.maths.clamp(relativeY / absSize.Y, 0, 1), 0)
+						slider.instance.Size = size
+						break
+						--end
+					end
+
+					if size then
+						percentageUpdate(size)
+					end
+				end
+			end)
+
+			for slider, container in pairs(containers) do
+				utils.tables.insert(conns, slider.instance.InputBegan:Connect(function(input)
+					handleDragStart(input, slider.instance, container.instance)
+				end))
+
+				utils.tables.insert(conns, container.instance.InputBegan:Connect(function(input)
+					handleDragStart(input, slider.instance, container.instance)
+				end))
+			end
+
+			utils.tables.insert(conns, USER_INPUT_SERVICE.TouchMoved:Connect(handleDragMove))
+			utils.tables.insert(conns, USER_INPUT_SERVICE.InputChanged:Connect(handleDragMove))
+
+			utils.tables.insert(conns, USER_INPUT_SERVICE.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(userInput)
+				if input.enabled and (userInput.UserInputType == Enum.UserInputType.MouseButton1 or userInput.UserInputType == Enum.UserInputType.Touch) and userInput == currentTouch then
+					isDraggingSliders = false
+					isDragging = false
+					currentTouch = nil
+
+					local percentage = utils.maths.round(buttons[1].instance.Size.Y.Scale *100)/100
+
+					input.percentage = percentage
+					input.OnPercentageChanged:Fire(percentage)
+				end
+			end)))
+
+			wave.protected:ProtectTable({input, handleDragStart, handleDragMove})
+			sliderCache[id] = input
+			return input
+		end
+		
+		function sliders.horizontal(buttons: {instance}, startPercentage, id: string): vertical
+			id = id or buttons[1].id
+
+			if sliderCache[id] then
+				if id == buttons[1].id then
+					sliderCount += 1
+					id = "Horizontal_" .. sliderCount
+				else
+					wave.console.error("Input id already in use.")
+				end
+			end
+
+			local containers = wave.protected:GCProtect({})
+			for _, slider in ipairs(buttons) do
+				containers[slider] = slider:GetParent()
+				slider.Active = true
+			end
+
+			local conns = wave.protected:GCProtect({})
+			local input = utils.tables.concatenate({
+				percentage = startPercentage,
+				containers = containers,
+				buttons = buttons,
+				id = id
+
+			}, baseInput)
+
+			input.OnPercentageUpdated = wave.signals.newEvent()
+			input.OnPercentageChanged = wave.signals.newEvent()
+
+			function input:SetId(id: string)
+				if sliderCache[id] then
+					wave.console.error("Input id already in use.")
+				end
+				
+				sliderCache[id] = self
+				sliderCache[self.id] = nil
+				self.id = id
+
+				return self
+			end
+
+			function input:Remove()
+				self.OnPercentageUpdated:Remove()
+				self.OnPercentageChanged:Remove()
+
+				for _, conn in ipairs(conns) do
+					conn:Disconnect()
+					conn = nil
+				end
+
+				sliderCache[self.id] = nil
+			end
+
+			local isDragging, currentTouch = false, nil
+			local function percentageUpdate(size: UDim2)
+				local percentage = utils.maths.round(size.X.Scale *100)/100
+
+				input.percentage = percentage
+				input.OnPercentageUpdated:Fire(percentage)
+
+				for slider, _ in pairs(containers) do
+					slider.instance.Size = size
+				end
+			end
+			
+			function input:SetPercentage(percentage: number, notUpdate: boolean)
+				local newSize = UDim2.fromScale(percentage, 1)
+				if not isDraggingSliders then
+					percentageUpdate(newSize)
+				end
+
+				if self.enabled and not notUpdate then
+					self.OnPercentageChanged:Fire(percentage)
+				end
+
+				return self
+			end
+
+			input:SetPercentage(startPercentage)
+			local handleDragStart = LPH_NO_VIRTUALIZE(function(userInput, slider, container)
+				if input.enabled and (userInput.UserInputType == Enum.UserInputType.MouseButton1 or userInput.UserInputType == Enum.UserInputType.Touch) then
+					if not currentTouch then
+						local absPos = container.AbsolutePosition
+						local absSize = container.AbsoluteSize
+						local mouse = userInput.Position
+						currentTouch = userInput
+						isDraggingSliders = true
+						isDragging = true
+
+						local relativeX = mouse.X - absPos.X
+						local size = UDim2.new(utils.maths.clamp(relativeX / absSize.X, 0, 1), 0, 1, 0)
+						slider.Size = size
+
+						percentageUpdate(size)
+					end
+				end
+			end)
+
+			local handleDragMove = LPH_NO_VIRTUALIZE(function(userInput)
+				if input.enabled and isDragging and (userInput == currentTouch or userInput.UserInputType == Enum.UserInputType.MouseMovement) then
+					local mouse = userInput.Position
+					local size = nil
+
+					for slider, container in pairs(containers) do
+						local absPos = container.instance.AbsolutePosition
+						local absSize = container.instance.AbsoluteSize
+
+						--if mouse.X > absPos.X and mouse.X < absPos.X + absSize.X then --and mouse.Y > absPos.Y and mouse.Y < absPos.Y + absSize.Y then
+						local relativeX = mouse.X - absPos.X
+						size = UDim2.new(utils.maths.clamp(relativeX / absSize.X, 0, 1), 0, 1, 0)
+						slider.instance.Size = size
+						break
+						--end
+					end
+
+					if size then
+						percentageUpdate(size)
+					end
+				end
+			end)
+
+			for slider, container in pairs(containers) do
+				utils.tables.insert(conns, slider.instance.InputBegan:Connect(function(input)
+					handleDragStart(input, slider.instance, container.instance)
+				end))
+
+				utils.tables.insert(conns, container.instance.InputBegan:Connect(function(input)
+					handleDragStart(input, slider.instance, container.instance)
+				end))
+			end
+
+			utils.tables.insert(conns, USER_INPUT_SERVICE.TouchMoved:Connect(handleDragMove))
+			utils.tables.insert(conns, USER_INPUT_SERVICE.InputChanged:Connect(handleDragMove))
+
+			utils.tables.insert(conns, USER_INPUT_SERVICE.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(userInput)
+				if input.enabled and (userInput.UserInputType == Enum.UserInputType.MouseButton1 or userInput.UserInputType == Enum.UserInputType.Touch) and userInput == currentTouch then
+					isDraggingSliders = false
+					isDragging = false
+					currentTouch = nil
+
+					local percentage = utils.maths.round(buttons[1].instance.Size.X.Scale *100)/100
+
+					input.percentage = percentage
+					input.OnPercentageChanged:Fire(percentage)
+				end
+			end)))
+
+			wave.protected:ProtectTable({input, handleDragStart, handleDragMove})
+			sliderCache[id] = input
+			return input
+		end
+
+		-- Tabs
+
+		function tabs.new(id: string): tabs
+			id = id or (function()
+				tabCount += 1
+				return "Tabs_" .. tabCount
+			end)()
+
+			if tabCache[id] then
+				wave.console.error("Tabs id already in use.")
+			end
+
+			local cache, previous, count = wave.protected:GCProtect({}), nil, 0
+			local newTabs = {
+				id = id
+			}
+
+			newTabs.OnTabCreated = wave.signals.newEvent()
+			newTabs.OnTabRemoved = wave.signals.newEvent()
+			newTabs.OnTabSelected = wave.signals.newEvent()
+
+			function newTabs:Select(id: string)
+				if cache[id] then
+					newTabs.OnTabSelected:Fire(cache[id], previous)
+					previous = cache[id]
+				end
+
+				return self
+			end
+
+			function newTabs:Add(button: instance?, data: {any}, id: string?): tab
+				id = id or button.id or (function()
+					count += 1
+					return "Tab_" .. count
+				end)()
+
+				if cache[id] then
+					wave.console.error("Tab id already in use.")
+				end
+
+				local con = nil
+				local tab = {
+					id = id,
+					data = data,
+					button = button
+				}
+
+				function tab:GetData()
+					return self.data
+				end
+
+				function tab:SetId(id: string)
+					if cache[id] then
+						wave.console.error("Tab id already in use.")
+					end
+					
+					cache[id] = self
+					cache[self.id] = nil
+					self.id = id
+
+					return self
+				end
+
+				function tab:Remove()
+					cache[id] = nil
+					newTabs.OnTabRemoved:Fire(self)
+					con:Disconnect()
+				end
+				
+				function tab:Select()
+					return newTabs:Select(id)
+				end
+
+				if button then
+					con = button.instance.MouseButton1Click:Connect(function()
+						newTabs:Select(id)
+					end)
+				end
+
+				wave.protected:ProtectTable(tab)
+				newTabs.OnTabCreated:Fire(tab)
+				cache[id] = tab
+				return tab
+			end
+
+			function newTabs:Get(id: string): tab
+				return cache[id]
+			end
+
+			function newTabs:Remove()
+				self.OnTabCreated:Remove()
+				self.OnTabRemoved:Remove()
+				self.OnTabSelected:Remove()
+
+				for _, tab in ipairs(cache) do
+					tab:Remove()
+				end
+
+				tabCache[self.id] = nil
+			end
+			
+			function newTabs:GetAll()
+				return cache
+			end
+
+			wave.protected:ProtectTable(newTabs)
+			tabCache[id] = newTabs
+			return newTabs
+		end
+
+		function tabs:Get(id: string): tab
+			return tabCache[id]
+		end
+
+		-- Editors
+
+		function editors.new(id: string): editor
+			id = id or (function()
+				editorCount += 1
+				return "Editor_" .. editorCount
+			end)()
+
+			if editorCache[id] then
+				wave.console.error("Editor id already in use.")
+			end
+
+			local textBox: TextBox, lines: TextLabel, state = nil, nil, true
+			--local highlighter = utils.highlighter.new()
+
+			local defMax = 199999
+			local con, hcon = nil, nil
+			local conns = nil
+			local maxc = defMax
+			
+			local hbox: TextLabel = nil
+			local editor = {
+				src = "",
+				id = id
+			}
+			
+			local linescount = 0
+			local countlines  = LPH_NO_VIRTUALIZE(function()
+				local str = "";
+				linescount = #utils.strings.split(utils.strings.sub(textBox.Text, 1, defMax), "\n"); -- defmax
+				
+				for i = 1, linescount do
+					str ..= utils.strings.tostring(i) .. "\n";
+				end
+
+				lines.Text = utils.strings.sub(str, 1, #str - 1);
+			end)
+
+			local function connectLines()
+				if not con and textBox and lines then
+					con = textBox:GetPropertyChangedSignal("Text"):Connect(countlines)
+					countlines()
+				end
+			end
+			
+			wave.protected:GCProtect(connectLines)
+			function editor:SetHighlighterColors(colors: {any})
+				wave.utils.highlighter.setTokenColors(colors)
+				
+				if hbox then hbox.Text = wave.utils.highlighter.run(textBox.Text, maxc) end
+				return self
+			end
+
+			function editor:ToggleHighlighter(enabled: boolean)
+				state = enabled
+				
+				if not state then
+					if hcon then hcon:Disconnect() end
+					hbox.Text = ""
+					hcon = nil
+					
+				elseif textBox then
+					hcon = textBox:GetPropertyChangedSignal("Text"):Connect(function()
+						local max = maxc /4
+						if wave.utils.strings.len(wave.utils.strings.sub(textBox.Text, 1, max)) >= max then
+							return
+						end
+						
+						hbox.Text = wave.utils.highlighter.run(textBox.Text, maxc)
+					end)
+					
+					hbox.Text = wave.utils.highlighter.run(textBox.Text, maxc)
+				end
+				
+				return self
+			end
+
+			function editor:ConnectHighlighter(instance: instance|Instance, maxChars: number?)
+				maxc = utils.maths.clamp(maxChars or defMax, 1, defMax)
+				
+				local new = utils.instances.getRobloxInstance(instance)
+				if not hbox and not textBox or textBox == new then
+					textBox = new
+					hbox = wave.protected:GetInstance("TextLabel", {
+						TextXAlignment = textBox.TextXAlignment,
+						TextYAlignment = textBox.TextYAlignment,
+						TextColor3 = Color3.new(1, 1, 1),
+						TextScaled = textBox.TextScaled,
+						Size = UDim2.fromScale(1, 1),
+						FontFace = textBox.FontFace,
+						TextSize = textBox.TextSize,
+						BackgroundTransparency = 1,
+						RichText = true,
+						Parent = new
+					})
+					
+					conns = {
+						textBox:GetPropertyChangedSignal("TextXAlignment"):Connect(function() hbox.TextXAlignment = textBox.TextXAlignment end),
+						textBox:GetPropertyChangedSignal("TextYAlignment"):Connect(function() hbox.TextYAlignment = textBox.TextYAlignment end),
+						textBox:GetPropertyChangedSignal("TextScaled"):Connect(function() hbox.TextScaled = textBox.TextScaled end),
+						textBox:GetPropertyChangedSignal("TextSize"):Connect(function() hbox.TextSize = textBox.TextSize end),
+						textBox:GetPropertyChangedSignal("FontFace"):Connect(function() hbox.FontFace = textBox.FontFace end),
+						--textBox:GetPropertyChangedSignal("Text"):Connect(function()
+						--	if editor:IsTextOverLimit() or editor.src == textBox.Text then return end
+						--	editor:SetText(textBox.Text)
+						--end)
+					}
+					
+					--highlighter.highlight({ textObject = textBox })
+					connectLines()
+					self:ToggleHighlighter(true)
+				end
+
+				return self
+			end
+
+			function editor:DisconnectHighlighter()
+				if textBox then
+					--highligher.disconnect(textBox)
+					if hcon then hcon:Disconnect() end
+					if hbox then hbox:Destroy() end
+					textBox = nil
+					hbox = nil
+					hcon = nil
+					
+					for _, con in ipairs(conns or {}) do
+						con:Disconnect()
+					end conns = nil
+				end
+
+				if con then
+					con:Disconnect()
+					con = nil
+				end
+
+				return self
+			end
+
+			function editor:ConnectLinesCounter(instance: instance|Instance)
+				lines = utils.instances.getRobloxInstance(instance)
+				connectLines()
+				return self
+			end
+
+			function editor:DisconnectLinesCounter()
+				if lines then	
+					lines = nil
+				end
+
+				if con then
+					con:Disconnect()
+					con = nil
+				end
+
+				return self
+			end
+
+			function editor:SetText(text: string)
+				self.src = text
+				
+				if textBox then
+					textBox.Text = utils.strings.sub(text, 1, defMax)
+				 	textBox.TextEditable = not self:IsTextOverLimit()
+				end
+				
+				return self
+			end
+			
+			function editor:IsTextOverLimit()
+				return #utils.strings.sub(self.src, 1, defMax +1) > defMax
+			end
+
+			function editor:GetText()
+				return (self:IsTextOverLimit() and
+					self.src or (textBox and textBox.Text)) or ""
+			end
+			
+			function editor:GetLinesCount()
+				return linescount
+			end
+
+			function editor:Execute()
+				wave.execution:Execute(self:GetText())
+				return self
+			end
+
+			function editor:Remove()
+				self:DisconnectHighlighter()
+				self:DisconnectLinesCounter()
+
+				if con then
+					con:Disconnect()
+					con = nil
+				end
+
+				editorCache[self.id] = nil
+			end
+
+			wave.protected:ProtectTable(editor)
+			editorCache[id] = editor
+			return editor
+		end
+
+		function editors:Get(id: string): editor
+			return editorCache[id]
+		end
+
+		inputs.tabs = tabs
+		inputs.buttons = buttons
+		inputs.sliders = sliders
+		inputs.editors = editors
+		
+		wave.protected:ProtectTable({inputs, baseInput, buttons, sliders, tabs, editors})
+		utils.inputs = inputs
+	end
+	
+	do -- functions
+		local functions = {}
+
+		function functions.infiniteRetry(delay: number, funct: (any) -> any, ...)
+			local succ, data
+			repeat
+				if succ ~= nil then
+					task.wait(delay)
+				end
+
+				succ, data = pcall(funct, ...)
+				if not succ then
+					wave.console.warn("InfiniteRetry error:", data, "| Retrying in", delay, "\n" .. debug.traceback())
+				end
+
+			until succ
+
+			return data
+		end
+
+		wave.protected:ProtectTable(functions)
+		utils.functions = functions
+	end
+	
+	wave.protected:ProtectTable(utils)
+
+	-- Definitions
+
+	if false then -- Studio definitions
+		utils.tables.getn = table.getn
+		utils.tables.foreachi = table.foreachi
+		utils.tables.foreach = table.foreach
+		utils.tables.sort = table.sort
+		utils.tables.unpack = table.unpack
+		utils.tables.freeze = table.freeze
+		utils.tables.clear = table.clear
+		utils.tables.pack = table.pack
+		utils.tables.move = table.move
+		utils.tables.insert = table.insert
+		utils.tables.create = table.create
+		utils.tables.maxn = table.maxn
+		utils.tables.isfrozen = table.isfrozen
+		utils.tables.concat = table.concat
+		utils.tables.clone = table.clone
+		utils.tables.find = table.find
+		utils.tables.remove = table.remove
+
+		utils.strings.split = table.split
+		utils.strings.match = table.match
+		utils.strings.gmatch = table.gmatch
+		utils.strings.upper = table.upper
+		utils.strings.gsub = table.gsub
+		utils.strings.format = table.format
+		utils.strings.lower = table.lower
+		utils.strings.sub = table.sub
+		utils.strings.pack = table.pack
+		utils.strings.find = table.find
+		utils.strings.char = table.char
+		utils.strings.packsize = table.packsize
+		utils.strings.reverse = table.reverse
+		utils.strings.byte = table.byte
+		utils.strings.unpack = table.unpack
+		utils.strings.rep = table.rep
+		utils.strings.len = table.len
+
+		utils.maths.log = table.log
+		utils.maths.ldexp = table.ldexp
+		utils.maths.rad = table.rad
+		utils.maths.cosh = table.cosh
+		utils.maths.round = table.round
+		utils.maths.random = table.random
+		utils.maths.frexp = table.frexp
+		utils.maths.tanh = table.tanh
+		utils.maths.floor = table.floor
+		utils.maths.max = table.max
+		utils.maths.sqrt = table.sqrt
+		utils.maths.modf = table.modf
+		utils.maths.huge = table.huge
+		utils.maths.pow = table.pow
+		utils.maths.atan = table.atan
+		utils.maths.tan = table.tan
+		utils.maths.cos = table.cos
+		utils.maths.pi = table.pi
+		utils.maths.noise = table.noise
+		utils.maths.log10 = table.log10
+		utils.maths.sign = table.sign
+		utils.maths.acos = table.acos
+		utils.maths.abs = table.abs
+		utils.maths.clamp = table.clamp
+		utils.maths.sinh = table.sinh
+		utils.maths.asin = table.asin
+		utils.maths.min = table.min
+		utils.maths.deg = table.deg
+		utils.maths.fmod = table.fmod
+		utils.maths.randomseed = table.randomseed
+		utils.maths.atan2 = table.atan2
+		utils.maths.ceil = table.ceil
+		utils.maths.sin = table.sin
+		utils.maths.exp = table.exp
+
+		utils.datetimes.fromUnixTimestamp = table.fromUnixTimestamp
+		utils.datetimes.now = table.now
+		utils.datetimes.fromIsoDate = table.fromIsoDate
+		utils.datetimes.fromUnixTimestampMillis = table.fromUnixTimestampMillis
+		utils.datetimes.fromLocalTime = table.fromLocalTime
+		utils.datetimes.fromUniversalTime = table.fromUniversalTime
+	end
+end
+
+--[[ Storage ]]
+
+do
+	local storage, directories = {}, wave.protected:GCProtect({})
+	local function fullPath(directory: string, name: string)
+		directory = directories[directory]
+		return directory and (name and (directory.path .. "/" .. name) or directory.path) or name
+	end
+
+	function storage:CreateDirectory(name: string, path: string, parent: directory|string): directory
+		if directories[name] then
+			wave.console.error("Directory name already in use.")
+		end
+		
+		local lastPath = path
+		if parent then
+			if typeof(parent) == "table" then
+				path = parent.path .. "/" .. path
+			else
+				local dir = directories[parent]
+				if dir then
+					path = dir.path .. "/" .. path
+				end
+			end
+		end
+		
+		-- Protects folder if it becomes a Custom Asset
+		wave.protected:ProtectAsset(name)
+		wave.protected:ProtectAsset(`{name}/`)
+		
+		wave.protected:ProtectAsset(path)
+		wave.protected:ProtectAsset(`{path}/`)
+
+		if not wave.env.isfolder(path) then
+			wave.env.makefolder(path)
+		end
+
+		local directory = {
+			lastPath = lastPath,
+			parent = parent,
+			name = name,
+			path = path
+		}
+
+		function directory:AddSubDirectory(name: string, path: string)
+			return storage:CreateDirectory(name, path, self)
+		end
+
+		function directory:Remove()
+			if self.parent then
+				if typeof(parent) == "table" then
+					self.parent:Remove()
+				else
+					local dir = directories[parent]
+					if dir then
+						dir:Remove()
+					end
+				end
+			end
+
+			directories[self.name] = nil
+		end
+		
+		function directory:WriteFile(name: string, source: string, encryptionKey: string)
+			return storage.writeFile(self.name, name, source, encryptionKey)
+		end
+		
+		function directory:ReadFile(name: string, decryptionKey: string)
+			return storage.readFile(self.name, name, decryptionKey)
+		end
+		
+		function directory:WriteJsonFile(name: string, source: string, encryptionKey: string)	
+			return storage.writeJsonFile(self.name, name, source, encryptionKey)
+		end
+		
+		function directory:ReadJsonFile(name: string, decryptionKey: string)
+			return storage.readJsonFile(self.name, name, decryptionKey)
+		end
+		
+		function directory:DeleteFile(name: string)
+			return storage.deleteFile(self.name, name)
+		end
+		
+		function directory:IsFolder(name: string)
+			return storage.isFolder(self.name, name)
+		end
+		
+		function directory:MakeFolder(name: string)
+			return storage.makeFolder(self.name, name)
+		end
+		
+		function directory:DeleteFolder(name: string)
+			return storage.deleteFolder(self.name, name)
+		end
+		
+		function directory:IsFile(name: string)
+			return storage.isFile(self.name, name)
+		end
+			
+		function directory:ListFiles(path: string)
+			return storage.listFiles(self.name, path)
+		end
+		
+		wave.protected:ProtectTable(directory)
+		directories[name] = directory
+		return directory
+	end
+
+	function storage:RemoveDirectory(name): directory
+		local dir = directories[name]
+
+		if not dir or not wave.env.isfolder(dir.path) then
+			return false
+		end
+
+		wave.env.delfolder(dir.path)
+		return true
+	end
+
+	function storage:GetDirectory(name: string): directory
+		return directories[name]
+	end
+
+	function storage.writeFile(directory: string, name: string, source: string, encryptionKey: string)
+		name = fullPath(directory, name)
+
+		-- Protects the file if it becomes a Custom Asset
+		wave.protected:ProtectAsset(name)
+		wave.protected:ProtectAsset(`{name}/`)
+
+		if encryptionKey then
+			source = wave.utils.crypt.base64.encode(wave.utils.crypt.bytes(source, encryptionKey))
+		end
+
+		wave.env.writefile(name, source or "")
+	end
+
+	function storage.readFile(directory: string, name: string, decryptionKey: string)
+		if not storage.isFile(directory, name) then
+			return false
+		end
+
+		local source = wave.env.readfile(fullPath(directory, name))
+
+		if decryptionKey then
+			source = wave.utils.crypt.bytes(wave.utils.crypt.base64.decode(source), decryptionKey)
+		end
+
+		return source
+	end
+
+	function storage.writeJsonFile(directory: string, name: string, source: string, encryptionKey: string)
+		return storage.writeFile(directory, name, wave.utils.http.json.encode(source), encryptionKey)
+	end
+
+	function storage.readJsonFile(directory: string, name: string, decryptionKey: string)
+		local source = storage.readFile(directory, name, decryptionKey)
+
+		if source then
+			return wave.utils.http.json.decode(source)
+		end
+
+		return false
+	end
+
+	function storage.deleteFile(directory: string, name: string)
+		if not storage.isFile(directory, name) then
+			return false
+		end
+		
+		wave.env.delfile(fullPath(directory, name))
+		return true
+	end
+	
+	function storage.isFolder(directory: string, name: string)
+		name = fullPath(directory, name)
+
+		local exists = wave.env.isfolder(name)
+		if not exists or exists == 404 then
+			return false
+		end
+
+		return true
+	end
+	
+	function storage.deleteFolder(directory: string, name: string)
+		if not storage.isFolder(directory, name) then
+			return false
+		end
+
+		wave.env.delfolder(fullPath(directory, name))
+		return true
+	end
+	
+	function storage.makeFolder(directory: string, name: string)
+		if not storage.isFolder(directory, name) then
+			wave.env.makefolder(fullPath(directory, name))
+			return true
+		end
+		
+		return false
+	end
+	
+	function storage.isFile(directory: string, name: string)
+		name = fullPath(directory, name)
+		
+		local exists = wave.env.isfile(name)
+		if not exists or exists == 404 then
+			return false
+		end
+		
+		return true
+	end
+	
+	function storage.listFiles(directory: string, path: string)
+		directory = fullPath(directory, path)
+		
+		local list = wave.env.listfiles(directory)
+		if not list or list == 404 then
+			return {}
+		end
+		
+		return list
+	end
+
+	wave.protected:ProtectTable(storage)
+	wave.storage = storage
+end
+
+--[[ Settings ]]
+
+do
+	local setts, curSetts, defSetts, signals = {
+		autoSave = true
+
+	}, wave.protected:GCProtect({}), wave.protected:GCProtect({}), wave.protected:GCProtect({})
+	
+	local key, name = "wave.settings", ".settings.wave"
+	local tasks = wave.protected:GetReference(task)
+	local dir
+	
+	local onChanged = wave.signals.newEvent()
+	local changed = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(name: string, ...: any)
+		if signals[name] then signals[name]:Fire(...) end
+		onChanged:Fire(name, ...)
+	end))
+	
+	setts.OnSettingChanged = onChanged
+	function setts:SetDefault(settings: {any})
+		defSetts = wave.protected:ProtectTable(wave.utils.tables.deepCopy(settings))
+		return self
+	end
+	
+	function setts:SetDirectory(directory: directory)
+		dir = directory
+	end
+	
+	function setts:SetFileName(fileName: string)
+		name = fileName
+	end
+	
+	function setts:SetFileKey(key: string)
+		key = key
+	end
+
+	function setts:LoadSettings()
+		if not dir then
+			dir = wave.storage:CreateDirectory("Wave", "Wave")
+		end
+		
+		local success, file = pcall(function()
+			return dir:ReadJsonFile(name, key) or {}
+		end)
+		
+		if not success then
+			file = {}
+		end
+
+		curSetts = wave.protected:GCProtect(wave.utils.tables.deepOverwrite(wave.utils.tables.deepCopy(defSetts), file))
+		for key, value in pairs(curSetts) do
+			changed(key, value, defSetts[key])
+		end
+		
+		--[[wave.utils.tables.deepForeach(curSetts, function(key: string, value: any)
+			if signals[key] then
+				signals[key]:Fire(value)
+			end
+		end)]]
+
+		return self
+	end
+
+	function setts:SaveSettings()
+		dir:WriteJsonFile(name, curSetts, key)
+		return self
+	end
+
+	function setts:GetSetting(name: string)
+		return curSetts[name]
+	end
+
+	function setts:GetDefaultSetting(name: string)
+		return defSetts[name]
+	end
+
+	function setts:SetSetting(name: string, value: any)
+		if typeof(value) ~= "table" and curSetts[name] == value then
+			return self
+		end
+
+		curSetts[name] = value
+		changed(name, value, defSetts[key])
+
+		if self.autoSave then
+			tasks.spawn(self.SaveSettings, self)
+		end
+
+		return self
+	end
+	
+	function setts:ResetAll()
+		curSetts = wave.utils.tables.deepCopy(defSetts)
+		tasks.spawn(self.SaveSettings, self)
+		
+		for key, value in pairs(curSetts) do
+			changed(key, value, defSetts[key])
+		end
+		
+		return self
+	end
+
+	function setts:SetAutoSave(value: boolean)
+		self.autoSave = value
+		return self
+	end
+
+	function setts:RemoveSetting(name: string)
+		if signals[name] then
+			signals[name]:Remove()
+			signals[name] = nil
+		end
+
+		curSetts[name] = nil
+		return self
+	end
+
+	function setts:GetSettingChangedSignal(name: string)
+		if not signals[name] then
+			signals[name] = wave.signals.newEvent()
+		end
+
+		return signals[name]
+	end
+	
+	function setts:GetCopy()
+		return wave.utils.tables.deepCopy(curSetts)
+	end
+
+	wave.protected:ProtectTable(setts)
+	wave.settings = setts
+end
+
+--[[ Execution ]]
+
+do
+	local execution = {}
+
+	execution.OnExecuted = wave.signals.newEvent()
+	execution.OnFileExecuted = wave.signals.newEvent()
+	execution.OnSourceExecuted = wave.signals.newEvent()
+
+	function execution:Execute(source: string, sync: boolean, ...: any)
+		if sync then
+			local suc, res = pcall(wave.env.loadstring, source)
+			if suc then
+				res(...)
+			end
+		else
+			pcall(wave.env.executecode, source)
+		end
+
+		self.OnExecuted:Fire()
+		self.OnSourceExecuted:Fire(source)
+
+		return self
+	end
+
+	function execution:ExecuteFile(path: string, sync: boolean)
+		if not wave.env.isfile(path) then
+			return false
+		end
+
+		if sync then
+			pcall(wave.env.loadfile, path)
+		else
+			pcall(wave.env.dofile, path)
+		end
+		
+		self.OnExecuted:Fire()
+		self.OnFileExecuted:Fire(path)
+		
+		return self
+	end
+	
+	function execution:ExecuteUrl(url: string, sync: boolean, method: string, headers: {any}, body: any)
+		local res = wave.utils.http:Request(url, method, headers, body)
+		if res then
+			execution:Execute(res.Body, sync)
+		end
+		
+		return self
+	end
+
+	wave.protected:ProtectTable(execution)
+	wave.execution = execution
+end
+
+--[[ Renderer ]]
+
+do
+	local RUN_SERVICE: RunService = wave.protected:GetService("RunService")
+	local renderer, bindings = {}, wave.protected:GCProtect({})
+	renderer.FrameworkPriority = -999
+
+	local function conformPriority(priority: number)
+		return priority <= 0 and 1 or priority
+	end
+
+	local function unbind(id: string)
+		RUN_SERVICE:UnbindFromRenderStep(id)
+	end
+
+	function renderer:BindToRenderer(id: string, priority: number?, funct: (any) -> (), ...: any): binding
+		if bindings[id] then
+			wave.console.error("Id: " .. id .. " already in use in rendering.")
+		end
+
+		local args = wave.protected:GCProtect({...})
+		local stateChanged = wave.signals.newEvent()
+		
+		local binding = {
+			id = id,
+			priority = priority or renderer.FrameworkPriority +1,
+			enabled = false
+		}
+		
+		binding.OnStateChanged = stateChanged
+
+		function binding:Pause()
+			unbind(self.id)
+			if self.enabled then
+				self.enabled = false
+				stateChanged:Fire(false)
+			end
+			
+			return self
+		end
+
+		function binding:Resume()
+			unbind(self.id)
+			RUN_SERVICE:BindToRenderStep(self.id, self.priority, function(delta: number)
+				funct(delta, wave.utils.tables.unpack(args))
+			end)
+
+			if not self.enabled then
+				self.enabled = true
+				stateChanged:Fire(true)
+			end
+			
+			return self
+		end
+
+		function binding:Render()
+			return binding:Resume()
+		end
+
+		function binding:SetPriority(priority: number)
+			self.priority = conformPriority(priority)
+			if self.enabled then
+				self:Resume()
+			end
+
+			return self
+		end		
+
+		function binding:Unbind()
+			unbind(self.id)
+			bindings[self.id] = nil
+			stateChanged:Fire(false)
+		end
+
+		wave.protected:ProtectTable(binding)
+		bindings[id] = binding
+		return binding
+	end
+
+	function renderer:GetOnRendering(): {binding}
+		local rendering = {}
+		for id, binding in pairs(bindings) do
+			if binding.enabled then
+				rendering[id] = binding
+			end
+		end
+
+		return rendering
+	end
+
+	function renderer:GetBindings(): {binding}
+		local binds = {}
+		for id, binding in pairs(bindings) do
+			binds[id] = binding
+		end
+
+		return binds
+	end
+
+	function renderer:GetBinding(id: string): binding
+		return bindings[id]
+	end
+
+	function renderer:Dispose()
+		for id, _ in pairs(bindings) do
+			unbind(id)
+		end
+
+		bindings = nil
+		return self
+	end
+
+	wave.protected:ProtectTable(renderer)
+	wave.renderer = renderer
+end
+
+do -- animator
+	local this, configs = {}, wave.protected:GCProtect({ -- Riky47#3355 Dynamic Srpites Animator
+		rawin = {"ResX", "ResY", "Duration", "Density"},
+		rawout = {"efc", "dur", "resy", "resx"},
+		md = 1024, -- Max dimension
+		ddur = 1,
+		dden = 1
+	})
+
+	--this.active = true
+	local onLoaded = wave.signals.newEvent()
+	this.OnAnimationLoaded = onLoaded
+	
+	function this.new(id: string, options: {any}, frameGen: (writePixel: (pixelIdx: number, r: number, g: number, b: number, a: number) -> void,
+		resolution: Vector2, frameIdx: number, totalFrames: number) -> void, priority: number, ...: any)
+
+		local data = {
+			res = options.Resolution or Vector2.new(options.ResX, options.ResY), -- resolution
+			resx = options.ResX or options.Resolution.X,
+			resy = options.ResY or options.Resolution.Y,
+			dur = options.Duration or configs.ddur, -- duration
+			den = options.Density or configs.dden, -- frames density
+			imgs = options.Outputs or {}, -- image object
+			once = false, -- renders once
+			elapsed = 0, -- elapsed
+			ogimg = {}, -- images from labels
+			ogtrn = {}, -- imageTransparencies
+			ares = 0, -- all resolution
+			lfi = -1, -- last frame index
+			efc = 0, -- effective frames count
+			fpr = 1, -- frames per row
+			ui = 0 -- Upper index
+		}
+
+		for _, img in ipairs(data.imgs) do
+			wave.utils.tables.insert(data.ogimg, img.Image)
+			wave.utils.tables.insert(data.ogtrn, img.ImageTransparency)
+		end
+
+		local compute = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function()
+			data.fpr = wave.utils.maths.floor(configs.md /data.resx)
+			data.efc = data.fpr *wave.utils.maths.floor(configs.md /data.resy)
+			data.efc = wave.utils.maths.min(data.den, data.efc)
+			data.ui = data.efc -1
+
+			if data.den > data.efc then
+				wave.console.warn(`Clamped frames to {data.efc}`)
+			end
+		end))
+
+		local content, edit
+		local setImgs = wave.protected:GCProtect(function(reset: boolean)
+			for i, img in ipairs(data.imgs) do
+				if reset then img.Image = data.ogimg[i] else
+					img.ImageContent = content or Content.none
+				end
+
+				img.ImageRectSize = reset and Vector2.zero or data.res
+				img.ImageTransparency = data.ogtrn[i]
+				img.ImageRectOffset = Vector2.zero
+				data.elapsed = 0
+			end
+		end)
+
+		local binding
+		local sprite = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function()
+			if edit then edit:Destroy() end
+			
+			local totalRows = wave.utils.maths.ceil(data.efc /data.fpr)
+			data.ares = Vector2.new(data.fpr *data.resx, totalRows *data.resy)
+			content, edit = wave.protected:GetUndetectedContent(nil, true, {
+				Size = data.ares
+			})
+			
+			if not edit then
+				wave.console.warn("Unable to use undetected content.")
+			end
+
+			setImgs(false)
+		end))
+
+		local resume = wave.protected:GCProtect(function()
+			for i, img: ImageLabel in ipairs(data.imgs) do
+				img.ImageTransparency = data.ogtrn[i]
+			end
+
+			setImgs(false)
+			binding:Resume()
+		end)
+
+		local setFrame = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(frameIndex: number)
+			local col, row = frameIndex %data.fpr, wave.utils.maths.floor(frameIndex /data.fpr)
+			local off = Vector2.new(col *data.resx, row *data.resy)
+			for _, img: ImageLabel in ipairs(data.imgs) do
+				img.ImageRectOffset = off
+			end
+		end))
+
+		compute()
+		binding = wave.renderer:BindToRenderer(id, priority or wave.renderer.FrameworkPriority +1, LPH_NO_VIRTUALIZE(function(delta)
+			--if not this.active then return end
+			data.elapsed = (data.elapsed +delta) %data.dur
+			local rawIndex = (data.elapsed /data.dur) *data.efc
+
+			local frameIndex = wave.utils.maths.floor(rawIndex)
+			if data.lfi == frameIndex then return end
+
+			data.lfi = frameIndex
+			if frameIndex >= data.ui then
+				if data.once then binding:Stop() end
+				frameIndex = data.ui
+			end
+
+			setFrame(frameIndex)
+		end), ...)
+
+		if options.Raw then
+			binding.Loaded = pcall(sprite) and pcall(edit.WritePixelsBuffer, edit, Vector2.zero, data.ares, options.Raw)
+			if not binding.Loaded then
+				for key, _ in pairs(options) do
+					local id = `og_{key}`
+					if options[id] then
+						options[key] = options[id]
+						options[id] = nil
+					end
+				end
+
+				data.res = options.Resolution
+				if not data.res then wave.console.error("No default resolution specified") end
+
+				data.dur = options.Duration or configs.ddur
+				data.den = options.Density or configs.dden
+				data.resx, data.resy = data.res.X, data.res.Y
+				compute()
+			end
+		else
+			binding.Loaded = false
+		end
+
+		binding.Generate = LPH_NO_VIRTUALIZE(function(self, resolution: Vector2?, density: number?)
+			self:Pause()
+			if resolution and data.res ~= resolution then
+				data.res = resolution; data.resx = resolution.X; data.resy = resolution.Y
+				if density then data.den = density end
+				compute(); sprite()
+
+			elseif not edit then sprite() end			
+			if not edit then return end
+
+			for idx=0, data.ui, 1 do
+				local col, row = idx %data.fpr, wave.utils.maths.floor(idx /data.fpr)
+				local buff = buffer.create(data.resx * data.resy *4)
+
+				local function writePixel(idx: number, r: number, g: number, b: number, a: number)
+					buffer.writeu8(buff, idx, r); buffer.writeu8(buff, idx +1, g); buffer.writeu8(buff, idx +2, b); buffer.writeu8(buff, idx +3, a)
+				end
+
+				frameGen(writePixel, data.res, idx, data.efc)
+				edit:WritePixelsBuffer(Vector2.new(col *data.resx, row *data.resy), data.res, buff)
+			end
+
+			binding.Loaded = true
+			onLoaded:Fire(binding)
+			return self
+		end)
+
+		function binding:SetDuration(duration: number)
+			data.dur = duration
+			return self
+		end
+
+		function binding:Render() -- Overwrite
+			if not self.Loaded then return self end
+			data.once = false
+			data.elapsed = 0
+			resume()
+
+			return self
+		end
+
+		function binding:RenderOnce(callback: () -> ())
+			if not self.Loaded then return self end
+			data.elapsed = 0
+			data.once = true
+
+			local conn
+			conn = self.OnStateChanged:Connect(function(state: boolean)
+				if not state then 
+					if callback then callback() end
+					conn:Disconnect()
+				end
+			end)
+
+			resume()
+			return self
+		end
+
+		function binding:Stop()
+			self:Pause()
+			for _, img: ImageLabel in ipairs(data.imgs) do
+				img.ImageTransparency = 1
+			end
+		end
+
+		function binding:SetEnabled(state: boolean)
+			if not state then self:Pause() end
+			setImgs(not state)
+			return self
+		end
+
+		function binding:SetFrame(n: number)
+			if data.efc < 1 then return end
+			setFrame(wave.utils.maths.clamp(n, 1, data.efc))
+			return self
+		end
+
+		function binding:GetFrameCount()
+			return data.efc
+		end
+
+		function binding:GetMaxFPS()
+			return data.efc /data.dur
+		end
+
+		function binding:GetWeight()
+			return buffer.len(edit:ReadPixelsBuffer(Vector2.zero, data.ares))/1024/1024
+		end
+
+		binding.GetRaw = LPH_NO_VIRTUALIZE(function(self, raw: string)
+			if not edit then return false end
+
+			local sprite = edit:ReadPixelsBuffer(Vector2.zero, data.ares)
+			local slen = buffer.len(sprite)
+
+			local buff = buffer.create(slen +#configs.rawout *2)
+			buffer.copy(buff, 0, sprite, 0, slen)
+
+			for idx, key in ipairs(configs.rawout) do
+				buffer.writeu16(buff, slen +(idx -1) *2, wave.utils.maths.floor(data[key] *10))
+			end
+
+			return buffer.tostring(buff)
+		end)
+		
+		if binding.Loaded then onLoaded:Fire(binding) end
+		return binding
+	end
+
+	this.fromRaw = LPH_NO_VIRTUALIZE(function(id: string, options: {any}, raw: string, frameGen: (idx: number, frames: number) -> buffer, priority: number, ...: any)
+		if not options.Resolution then wave.console.error("No default resolution specified") end
+		local buff = buffer.fromstring(raw or "")
+		local len = buffer.len(buff)
+
+		local plen = #configs.rawin *2
+		if len > plen then
+			for idx, key in ipairs(configs.rawin) do
+				local value = buffer.readu16(buff, len -idx *2)
+				options[`og_{key}`] = options[key]
+				options[key] = value /10
+			end
+
+			if Vector2.new(options.ResX, options.ResY) == options.Resolution then
+				local slen = len -plen
+				local sprite = buffer.create(slen)
+				buffer.copy(sprite, 0, buff, 0, slen)
+				options.Raw = sprite
+			end
+		end
+
+		return this.new(id, options, frameGen, priority, ...)
+	end)
+
+	this.computePixels = LPH_NO_VIRTUALIZE(function(resolution: Vector2, onPixel: (idx: number, x: number, y: number) -> void)
+		for y = 0, resolution.Y -1 do
+			for x = 0, resolution.X -1 do
+				onPixel((y *resolution.X +x) *4, x, y)
+			end
+		end
+	end)
+
+	function this:Get(id: string)
+		return wave.renderer:GetBinding(id)
+	end
+	
+	wave.animator = wave.protected:ProtectTable(this)
+end
+
+--[[ Interface ]]
+
+do
+	local interface, interfaces = {}, wave.protected:GCProtect({})
+	local interfaceCounter = 0
+
+	function interface.new(interfaceId: string): interface
+		interfaceId = interfaceId or (function()
+			interfaceCounter += 1
+			return "UI_" .. interfaceCounter
+		end)()
+
+		local gui = wave.protected:GetInstance("ScreenGui", {
+			DisplayOrder = 1999999999,
+			IgnoreGuiInset = true,
+			ResetOnSpawn = false,
+			Enabled = false
+		})
+
+		local instances, components, baseComponents, imaps = wave.protected:GCProtect({}), wave.protected:GCProtect({}), wave.protected:GCProtect({}), wave.protected:GCProtect({})
+		local instanceCounter, componentCounter = 0, 0
+		local instanceAdded = wave.signals.newEvent()
+			
+		local newInterface = {
+			instance = gui,
+			id = interfaceId
+		}
+		
+		local collections = wave.protected:GCProtect({})
+		local addToCollection = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(tag: string, instance: instance)
+			if not collections[tag] then collections[tag] = wave.protected:GCProtect({}) end
+			wave.utils.tables.insert(collections[tag], instance)
+		end))
+		
+		local remFromCollection = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(tag: string, instance: instance)
+			if not collections[tag] then return end
+			local found = wave.utils.tables.find(collections[tag], instance)
+			if found then wave.utils.tables.remove(collections[tag], found) end
+			if #collections[tag] < 1 then collections[tag] = nil end
+		end))
+		
+		local wipeFromCollection = wave.protected:GCProtect(LPH_NO_VIRTUALIZE(function(instance: instance)
+			for tag, _ in pairs(collections) do remFromCollection(tag, instance) end
+		end))
+		
+		newInterface.OnInstanceAdded = instanceAdded
+		function newInterface:SetEnabled(enabled: boolean)
+			self.instance.Enabled = enabled
+			return self
+		end
+
+		function newInterface:Remove()
+			self.instance:Destroy()
+
+			--instances = nil
+			--interface = nil
+			interfaces[interfaceId] = nil
+		end
+		
+		function newInterface:GetByTag(tag: string)
+			return collections[tag] or {}
+		end
+
+		function newInterface:AddInstance(class: string, properties: {any}, ...: any): instance
+			properties = properties or {}
+			properties.Parent = properties.Parent or self.instance
+			local instanceId = properties.Id or (function()
+				instanceCounter += 1
+				return "Instance_" .. instanceCounter
+			end)()
+			
+			local ogtags, tags = properties.Tags, wave.protected:GCProtect({})
+			properties.Tags = nil
+			
+			local onRemove = properties.OnRemoved
+			properties.OnRemoved = nil
+
+			local instance, children, customProps = wave.protected:GetInstance(class, properties, ...)
+			local customParent = nil
+			local object = {
+				interface = newInterface,
+				instance = instance,
+				id = instanceId,
+			}
+			
+			wave.utils.tables.concatenate(object, customProps)
+			local addtag = wave.protected:GCProtect(function(tag: string)
+				wave.utils.tables.insert(tags, tag)
+				addToCollection(tag, object)
+			end)
+			
+			local remtag = wave.protected:GCProtect(function(tag: string)
+				remFromCollection(tag, object)
+				local found = wave.utils.tables.find(tags, tag)
+				if found then wave.utils.tables.remove(tags, found) end
+			end)
+			
+			function object:AddTags(tag: string|{string})
+				if typeof(tag) == "string" then
+					addtag(tag)
+				else
+					for _, v in ipairs(tag) do addtag(v) end
+				end
+				return self
+			end
+			
+			function object:GetTags()
+				return wave.utils.tables.deepCopy(tags)
+			end
+			
+			function object:HasTags(tag: string|{string})
+				if typeof(tag) == "string" then
+					return wave.utils.tables.find(tags, tag) and true or false
+				else
+					for _, v in ipairs(tag) do
+						if not wave.utils.tables.find(tags, v) then return false end
+					end
+					return true
+				end
+			end
+			
+			function object:RemoveTags(tag: string|{string})
+				if typeof(tag) == "string" then
+					remtag(tag)
+				else
+					for _, v in ipairs(tag) do
+						remtag(v)
+					end
+				end
+				
+				return self
+			end
+
+			function object:SetId(id: string)
+				if instances[id] then
+					wave.console.error("Instance id already in use.")
+				end
+				
+				instances[id] = self
+				instances[self.id] = nil
+				self.id = id
+				return self
+			end
+
+			function object:SetParent(parent: instance|Instance)
+				if typeof(parent) ~= "Instance" then
+					customParent = parent
+				end
+
+				self.instance.Parent = (typeof(parent) == "Instance" and parent or parent.instance) or wave.utils.instances.dynamicParent()
+				return self
+			end
+			
+			function object:GetParent()
+				return customParent or {instance = self.instance.Parent}
+			end
+			
+			function object:Tween(tweenInfo: TweenInfo, propertyTable: {any})
+				local tween = wave.protected:GetService("TweenService"):Create(self.instance, tweenInfo, propertyTable)
+				tween:Play()
+				
+				return tween
+			end
+
+			function object:SetDraggable(draggable: boolean)
+				if draggable then
+					wave.utils.inputs.makeDraggable(self)
+				else
+					wave.utils.inputs.makeUndraggable(self)
+				end
+
+				return self
+			end
+
+			function object:Remove()
+				instances[instanceId] = nil
+				imaps[instance] = nil
+				
+				if #tags > 0 then wipeFromCollection(object) end
+				self.instance:Destroy()
+				if onRemove then onRemove() end
+			end
+			
+			for _, child in ipairs(wave.utils.tables.concatenate({...}, children)) do
+				if typeof(child) ~= "Instance" then
+					child:SetParent(object)
+				end
+			end
+
+			instance.AncestryChanged:Connect(function(child, parent)
+				if not parent and instances[instanceId] then
+					instances[instanceId] = nil
+					imaps[instance] = nil
+					
+					if #tags > 0 then wipeFromCollection(object) end
+					object.instance = nil
+					if onRemove then onRemove() end
+				end
+			end)
+			
+			wave.protected:ProtectTable(object)
+			instances[instanceId] = object
+			imaps[instance] = object
+			
+			if ogtags then
+				object:AddTags(ogtags)
+				ogtags = nil
+			end
+
+			instanceAdded:Fire(object)
+			return object
+		end
+
+		function newInterface:CreateComponent(name: string): baseComponent
+			if baseComponents[name] then
+				wave.console.error("Component already exists")
+			end
+
+			local newComponent = {}
+			newComponent.OnCreating = wave.signals.newFunction()
+
+			function newComponent:Remove()
+				self.OnCreating:Remove()
+				baseComponents[name] = nil
+			end
+
+			baseComponents[name] = newComponent
+			return newComponent
+		end
+
+		function newInterface:AddComponent(class: string, properties: {any}, ...): component
+			properties = properties or {}
+			properties.Parent = properties.Parent or self.instance
+
+			--local customParent = nil
+			local id = properties.Id or (function()
+				componentCounter += 1
+				return "Component_" .. componentCounter
+			end)()
+
+			local component = {}
+			local newInstance = baseComponents[class].OnCreating:Invoke(properties, ...)
+			if not newInstance or not newInstance.instance then
+				wave.console.error("No instance returned for component '" .. class .. "'")
+			end
+
+			for k, v in pairs(newInstance) do component[k] = v end
+			component.id = id
+			
+			function component:SetId(id: string)
+				if components[id] then
+					wave.console.error("Component id already in use.")
+				end
+				
+				components[id] = self
+				components[self.id] = nil
+				self.id = id
+				return self
+			end
+
+			--[[
+			function component:SetParent(parent: instance|Instance)
+				if typeof(parent) ~= "Instance" then
+					customParent = parent
+				end
+
+				self.instance.Parent = (typeof(parent) == "Instance" and parent or parent.instance) or wave.utils.instances.dynamicParent()
+				return self
+			end
+
+			function component:GetParent()
+				return customParent or {instance = self.instance.Parent}
+			end
+
+			function component:Tween(tweenInfo: TweenInfo, propertyTable: {any})
+				local tween = wave.protected:GetService("TweenService"):Create(self.instance, tweenInfo, propertyTable)
+				tween:Play()
+				
+				return tween
+			end
+
+			function component:SetDraggable(draggable: boolean)
+				if draggable then
+					wave.utils.inputs.makeDraggable(self)
+				else
+					wave.utils.inputs.makeUndraggable(self)
+				end
+
+				return self
+			end]]
+
+			function component:Remove()
+				newInstance:Remove()
+				self.instance = nil
+			end
+
+			if not component.instance.Parent then
+				component.instance.Parent = properties.Parent or wave.utils.instances.dynamicParent()
+			end
+
+			components[id] = component
+			return component
+		end
+
+		function newInterface:Get(id: string|Instance): instance|component|baseComponent
+			return instances[id] or components[id] or baseComponents[id] or imaps[id]
+		end
+
+		wave.protected:ProtectTable(newInterface)
+		interfaces[interfaceId] = newInterface
+		return newInterface
+	end
+
+	function interface:Get(id: string): interface
+		return interfaces[id]
+	end
+
+	wave.protected:ProtectTable(interface)
+	wave.interface = interface
+end
+
+wave.protected:ProtectTable(wave)
+return wave
